@@ -18,6 +18,7 @@ import io.trino.plugin.hive.HdfsEnvironment;
 import io.trino.plugin.hive.HdfsEnvironment.HdfsContext;
 import io.trino.plugin.iceberg.procedure.IcebergOptimizeHandle;
 import io.trino.plugin.iceberg.procedure.IcebergTableExecuteHandle;
+import io.trino.plugin.iceberg.procedure.IcebergVacuumHandle;
 import io.trino.spi.PageIndexerFactory;
 import io.trino.spi.connector.ConnectorInsertTableHandle;
 import io.trino.spi.connector.ConnectorOutputTableHandle;
@@ -27,6 +28,7 @@ import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorTableExecuteHandle;
 import io.trino.spi.connector.ConnectorTransactionHandle;
 import io.trino.spi.connector.SchemaTableName;
+import org.apache.iceberg.FileFormat;
 import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.PartitionSpecParser;
 import org.apache.iceberg.Schema;
@@ -34,6 +36,9 @@ import org.apache.iceberg.SchemaParser;
 import org.apache.iceberg.io.LocationProvider;
 
 import javax.inject.Inject;
+
+import java.util.List;
+import java.util.Map;
 
 import static io.trino.plugin.iceberg.IcebergUtil.getLocationProvider;
 import static java.util.Objects.requireNonNull;
@@ -104,28 +109,59 @@ public class IcebergPageSinkProvider
         IcebergTableExecuteHandle executeHandle = (IcebergTableExecuteHandle) tableExecuteHandle;
         switch (executeHandle.getProcedureId()) {
             case OPTIMIZE:
-                HdfsContext hdfsContext = new HdfsContext(session);
                 IcebergOptimizeHandle optimizeHandle = (IcebergOptimizeHandle) executeHandle.getProcedureHandle();
-                Schema schema = SchemaParser.fromJson(optimizeHandle.getSchemaAsJson());
-                PartitionSpec partitionSpec = PartitionSpecParser.fromJson(schema, optimizeHandle.getPartitionSpecAsJson());
-                LocationProvider locationProvider = getLocationProvider(executeHandle.getSchemaTableName(),
-                        executeHandle.getTableLocation(), optimizeHandle.getTableStorageProperties());
-                return new IcebergPageSink(
-                        schema,
-                        partitionSpec,
-                        locationProvider,
-                        fileWriterFactory,
-                        pageIndexerFactory,
-                        hdfsEnvironment,
-                        hdfsContext,
-                        optimizeHandle.getTableColumns(),
-                        jsonCodec,
+                return createIcebergPageSink(
                         session,
-                        optimizeHandle.getFileFormat(),
+                        optimizeHandle.getSchemaAsJson(),
+                        optimizeHandle.getPartitionSpecAsJson(),
+                        executeHandle.getSchemaTableName(),
+                        executeHandle.getTableLocation(),
                         optimizeHandle.getTableStorageProperties(),
-                        maxOpenPartitions);
+                        optimizeHandle.getTableColumns(),
+                        optimizeHandle.getFileFormat());
+            case VACUUM:
+                IcebergVacuumHandle vacuumHandle = (IcebergVacuumHandle) executeHandle.getProcedureHandle();
+                return createIcebergPageSink(
+                        session,
+                        vacuumHandle.getSchemaAsJson(),
+                        vacuumHandle.getPartitionSpecAsJson(),
+                        executeHandle.getSchemaTableName(),
+                        executeHandle.getTableLocation(),
+                        vacuumHandle.getTableStorageProperties(),
+                        vacuumHandle.getTableColumns(),
+                        vacuumHandle.getFileFormat());
         }
 
         throw new IllegalArgumentException("Unknown procedure: " + executeHandle.getProcedureId());
+    }
+
+    private IcebergPageSink createIcebergPageSink(
+            ConnectorSession session,
+            String schemaAsJson,
+            String partitionSpecAsJson,
+            SchemaTableName schemaTableName,
+            String tableLocation,
+            Map<String, String> tableStorageProperties,
+            List<IcebergColumnHandle> tableColumns,
+            FileFormat fileFormat)
+    {
+        HdfsContext hdfsContext = new HdfsContext(session);
+        Schema schema = SchemaParser.fromJson(schemaAsJson);
+        PartitionSpec partitionSpec = PartitionSpecParser.fromJson(schema, partitionSpecAsJson);
+        LocationProvider locationProvider = getLocationProvider(schemaTableName, tableLocation, tableStorageProperties);
+        return new IcebergPageSink(
+                schema,
+                partitionSpec,
+                locationProvider,
+                fileWriterFactory,
+                pageIndexerFactory,
+                hdfsEnvironment,
+                hdfsContext,
+                tableColumns,
+                jsonCodec,
+                session,
+                fileFormat,
+                tableStorageProperties,
+                maxOpenPartitions);
     }
 }

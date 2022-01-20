@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableSet;
 import io.airlift.units.DataSize;
+import io.airlift.units.Duration;
 import io.trino.spi.connector.ConnectorTableHandle;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.predicate.TupleDomain;
@@ -49,6 +50,7 @@ public class IcebergTableHandle
     // OPTIMIZE only. Coordinator-only
     private final boolean recordScannedFiles;
     private final Optional<DataSize> maxScannedFileSize;
+    private final Optional<Duration> retentionThreshold;
 
     @JsonCreator
     public IcebergTableHandle(
@@ -71,6 +73,7 @@ public class IcebergTableHandle
                 projectedColumns,
                 nameMappingJson,
                 false,
+                Optional.empty(),
                 Optional.empty());
     }
 
@@ -84,7 +87,8 @@ public class IcebergTableHandle
             Set<IcebergColumnHandle> projectedColumns,
             Optional<String> nameMappingJson,
             boolean recordScannedFiles,
-            Optional<DataSize> maxScannedFileSize)
+            Optional<DataSize> maxScannedFileSize,
+            Optional<Duration> retentionThreshold)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
@@ -96,6 +100,7 @@ public class IcebergTableHandle
         this.nameMappingJson = requireNonNull(nameMappingJson, "nameMappingJson is null");
         this.recordScannedFiles = recordScannedFiles;
         this.maxScannedFileSize = requireNonNull(maxScannedFileSize, "maxScannedFileSize is null");
+        this.retentionThreshold = requireNonNull(retentionThreshold, "retentionThreshold is null");
     }
 
     @JsonProperty
@@ -158,6 +163,12 @@ public class IcebergTableHandle
         return maxScannedFileSize;
     }
 
+    @JsonIgnore
+    public Optional<Duration> getRetentionThreshold()
+    {
+        return retentionThreshold;
+    }
+
     public SchemaTableName getSchemaTableName()
     {
         return new SchemaTableName(schemaName, tableName);
@@ -180,7 +191,8 @@ public class IcebergTableHandle
                 projectedColumns,
                 nameMappingJson,
                 recordScannedFiles,
-                maxScannedFileSize);
+                maxScannedFileSize,
+                retentionThreshold);
     }
 
     public IcebergTableHandle forOptimize(boolean recordScannedFiles, DataSize maxScannedFileSize)
@@ -195,7 +207,24 @@ public class IcebergTableHandle
                 projectedColumns,
                 nameMappingJson,
                 recordScannedFiles,
-                Optional.of(maxScannedFileSize));
+                Optional.of(maxScannedFileSize),
+                Optional.empty());
+    }
+
+    public IcebergTableHandle forVacuum(boolean recordScannedFiles, Duration retentionThreshold)
+    {
+        return new IcebergTableHandle(
+                schemaName,
+                tableName,
+                tableType,
+                snapshotId,
+                unenforcedPredicate,
+                enforcedPredicate,
+                projectedColumns,
+                nameMappingJson,
+                recordScannedFiles,
+                Optional.empty(),
+                Optional.of(retentionThreshold));
     }
 
     @Override
@@ -218,13 +247,14 @@ public class IcebergTableHandle
                 Objects.equals(enforcedPredicate, that.enforcedPredicate) &&
                 Objects.equals(projectedColumns, that.projectedColumns) &&
                 Objects.equals(nameMappingJson, that.nameMappingJson) &&
-                Objects.equals(maxScannedFileSize, that.maxScannedFileSize);
+                Objects.equals(maxScannedFileSize, that.maxScannedFileSize) &&
+                Objects.equals(retentionThreshold, that.retentionThreshold);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaName, tableName, tableType, snapshotId, unenforcedPredicate, enforcedPredicate, projectedColumns, nameMappingJson, recordScannedFiles, maxScannedFileSize);
+        return Objects.hash(schemaName, tableName, tableType, snapshotId, unenforcedPredicate, enforcedPredicate, projectedColumns, nameMappingJson, recordScannedFiles, maxScannedFileSize, retentionThreshold);
     }
 
     @Override

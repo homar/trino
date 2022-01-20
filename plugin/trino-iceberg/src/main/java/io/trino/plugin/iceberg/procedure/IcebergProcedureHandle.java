@@ -21,5 +21,6 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
         property = "@type")
 @JsonSubTypes({
         @JsonSubTypes.Type(value = IcebergOptimizeHandle.class, name = "optimize"),
+        @JsonSubTypes.Type(value = IcebergVacuumHandle.class, name = "vacuum"),
 })
 public abstract class IcebergProcedureHandle {}

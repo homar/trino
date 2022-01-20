@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import io.airlift.json.JsonCodec;
 import io.airlift.slice.Slice;
 import io.airlift.units.DataSize;
+import io.airlift.units.Duration;
 import io.trino.plugin.base.classloader.ClassLoaderSafeSystemTable;
 import io.trino.plugin.hive.HiveApplyProjectionUtil;
 import io.trino.plugin.hive.HiveApplyProjectionUtil.ProjectedColumnRepresentation;
@@ -30,6 +31,7 @@ import io.trino.plugin.hive.HiveWrittenPartitions;
 import io.trino.plugin.iceberg.procedure.IcebergOptimizeHandle;
 import io.trino.plugin.iceberg.procedure.IcebergTableExecuteHandle;
 import io.trino.plugin.iceberg.procedure.IcebergTableProcedureId;
+import io.trino.plugin.iceberg.procedure.IcebergVacuumHandle;
 import io.trino.spi.TrinoException;
 import io.trino.spi.connector.Assignment;
 import io.trino.spi.connector.BeginTableExecuteResult;
@@ -132,6 +134,7 @@ import static io.trino.plugin.iceberg.TrinoHiveCatalog.DEPENDS_ON_TABLES;
 import static io.trino.plugin.iceberg.TypeConverter.toIcebergType;
 import static io.trino.plugin.iceberg.TypeConverter.toTrinoType;
 import static io.trino.plugin.iceberg.procedure.IcebergTableProcedureId.OPTIMIZE;
+import static io.trino.plugin.iceberg.procedure.IcebergTableProcedureId.VACUUM;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.type.BigintType.BIGINT;
 import static java.util.Collections.singletonList;
@@ -578,9 +581,29 @@ public class IcebergMetadata
         switch (procedureId) {
             case OPTIMIZE:
                 return getTableHandleForOptimize(session, tableHandle, executeProperties);
+            case VACUUM:
+                return getTableHandleForVacuum(session, tableHandle, executeProperties);
         }
 
         throw new IllegalArgumentException("Unknown procedure: " + procedureId);
+    }
+
+    private Optional<ConnectorTableExecuteHandle> getTableHandleForVacuum(ConnectorSession session, IcebergTableHandle tableHandle, Map<String, Object> executeProperties)
+    {
+        Duration retentionThreshold = (Duration) executeProperties.get("retention_threshold");
+        Table icebergTable = catalog.loadTable(session, tableHandle.getSchemaTableName());
+
+        return Optional.of(new IcebergTableExecuteHandle(
+                tableHandle.getSchemaTableName(),
+                VACUUM,
+                new IcebergVacuumHandle(
+                        SchemaParser.toJson(icebergTable.schema()),
+                        PartitionSpecParser.toJson(icebergTable.spec()),
+                        getColumns(icebergTable.schema(), typeManager),
+                        getFileFormat(icebergTable),
+                        icebergTable.properties(),
+                        retentionThreshold),
+                icebergTable.location()));
     }
 
     private Optional<ConnectorTableExecuteHandle> getTableHandleForOptimize(ConnectorSession session, IcebergTableHandle tableHandle, Map<String, Object> executeProperties)
@@ -608,8 +631,16 @@ public class IcebergMetadata
         switch (executeHandle.getProcedureId()) {
             case OPTIMIZE:
                 return getLayoutForOptimize(session, executeHandle);
+            case VACUUM:
+                return getLayoutForVacuum(session, executeHandle);
         }
         throw new IllegalArgumentException("Unknown procedure '" + executeHandle.getProcedureId() + "'");
+    }
+
+    private Optional<ConnectorNewTableLayout> getLayoutForVacuum(ConnectorSession session, IcebergTableExecuteHandle executeHandle)
+    {
+        Table icebergTable = catalog.loadTable(session, executeHandle.getSchemaTableName());
+        return getWriteLayout(icebergTable.schema(), icebergTable.spec());
     }
 
     private Optional<ConnectorNewTableLayout> getLayoutForOptimize(ConnectorSession session, IcebergTableExecuteHandle executeHandle)
@@ -629,8 +660,26 @@ public class IcebergMetadata
         switch (executeHandle.getProcedureId()) {
             case OPTIMIZE:
                 return beginOptimize(session, executeHandle, table);
+            case VACUUM:
+                return beginVacuum(session, executeHandle, table);
         }
         throw new IllegalArgumentException("Unknown procedure '" + executeHandle.getProcedureId() + "'");
+    }
+
+    private BeginTableExecuteResult<ConnectorTableExecuteHandle, ConnectorTableHandle> beginVacuum(
+            ConnectorSession session,
+            IcebergTableExecuteHandle executeHandle,
+            IcebergTableHandle table)
+    {
+        IcebergVacuumHandle optimizeHandle = (IcebergVacuumHandle) executeHandle.getProcedureHandle();
+        Table icebergTable = catalog.loadTable(session, table.getSchemaTableName());
+
+        verify(transaction == null, "transaction already set");
+        transaction = icebergTable.newTransaction();
+
+        return new BeginTableExecuteResult<>(
+                executeHandle,
+                table.forVacuum(true, optimizeHandle.getRetentionThreshold()));
     }
 
     private BeginTableExecuteResult<ConnectorTableExecuteHandle, ConnectorTableHandle> beginOptimize(
@@ -657,8 +706,20 @@ public class IcebergMetadata
             case OPTIMIZE:
                 finishOptimize(executeHandle, fragments, splitSourceInfo);
                 return;
+            case VACUUM:
+                finishVacuum(executeHandle, fragments, splitSourceInfo);
+                return;
         }
         throw new IllegalArgumentException("Unknown procedure '" + executeHandle.getProcedureId() + "'");
+    }
+
+    private void finishVacuum(IcebergTableExecuteHandle executeHandle, Collection<Slice> fragments, List<Object> splitSourceInfo)
+    {
+        IcebergVacuumHandle vacuumHandle = (IcebergVacuumHandle) executeHandle.getProcedureHandle();
+        Table icebergTable = transaction.table();
+
+        transaction.commitTransaction();
+        transaction = null;
     }
 
     private void finishOptimize(IcebergTableExecuteHandle executeHandle, Collection<Slice> fragments, List<Object> splitSourceInfo)

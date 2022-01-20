@@ -3348,4 +3348,42 @@ public abstract class BaseIcebergConnectorTest
                 "ALTER TABLE nation EXECUTE OPTIMIZE (file_size_threshold => '33s')",
                 "\\QUnable to set procedure property 'file_size_threshold' to ['33s']: Unknown unit: s");
     }
+
+    @Test
+    public void testVacuumParameterValidation()
+    {
+        assertQueryFails(
+                "ALTER TABLE no_such_table_exists EXECUTE VACUUM",
+                "\\Qline 1:1: Table 'iceberg.tpch.no_such_table_exists' does not exist");
+        assertQueryFails(
+                "ALTER TABLE nation EXECUTE VACUUM (retention_threshold => '33')",
+                "\\QUnable to set procedure property 'retention_threshold' to ['33']: duration is not a valid data duration string: 33");
+        assertQueryFails(
+                "ALTER TABLE nation EXECUTE VACUUM (retention_threshold => '33mb')",
+                "\\QUnable to set procedure property 'retention_threshold' to ['33mb']: Unknown time unit: mb");
+    }
+
+    @Test
+    public void testVacuum()
+            throws InterruptedException
+    {
+        String tableName = "test_vacuuming_" + randomTableSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (key varchar, value integer)");
+        // vacuum an empty table
+        assertQuerySucceeds("ALTER TABLE " + tableName + " EXECUTE VACUUM");
+        assertUpdate("INSERT INTO " + tableName + " VALUES ('one', 1)", 1);
+        Thread.sleep(2000);
+        assertUpdate("INSERT INTO " + tableName + " VALUES ('two', 2)", 1);
+        assertThat(query("SELECT sum(value), listagg(key, ' ') WITHIN GROUP (ORDER BY key) FROM " + tableName))
+                .matches("VALUES (BIGINT '3', VARCHAR 'one two')");
+        List<String> initialFiles = getActiveFiles(tableName);
+
+        assertQuerySucceeds("ALTER TABLE " + tableName + " EXECUTE VACUUM (retention_threshold => '1s')");
+
+        assertThat(query("SELECT sum(value), listagg(key, ' ') WITHIN GROUP (ORDER BY key) FROM " + tableName))
+                .matches("VALUES (BIGINT '3', VARCHAR 'one two')");
+        List<String> updatedFiles = getActiveFiles(tableName);
+        assertThat(updatedFiles.size()).isLessThan(initialFiles.size());
+        assertThat(updatedFiles.size()).isEqualTo(1);
+    }
 }
