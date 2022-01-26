@@ -54,6 +54,7 @@ import io.trino.sql.planner.plan.IndexSourceNode;
 import io.trino.sql.planner.plan.JoinNode;
 import io.trino.sql.planner.plan.LimitNode;
 import io.trino.sql.planner.plan.MarkDistinctNode;
+import io.trino.sql.planner.plan.NonReadingTableExecuteNode;
 import io.trino.sql.planner.plan.OutputNode;
 import io.trino.sql.planner.plan.PatternRecognitionNode;
 import io.trino.sql.planner.plan.PlanNode;
@@ -478,6 +479,14 @@ public final class PropertyDerivations
             }
             return ActualProperties.builder()
                     .global(properties.isSingleNode() ? singleStreamPartition() : arbitraryPartition())
+                    .build();
+        }
+
+        @Override
+        public ActualProperties visitTableExecuteCoordinatorOnly(NonReadingTableExecuteNode node, List<ActualProperties> inputProperties)
+        {
+            return ActualProperties.builder()
+                    .global(coordinatorSingleStreamPartition())
                     .build();
         }
 

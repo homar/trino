@@ -71,6 +71,7 @@ import io.trino.sql.planner.plan.IntersectNode;
 import io.trino.sql.planner.plan.JoinNode;
 import io.trino.sql.planner.plan.LimitNode;
 import io.trino.sql.planner.plan.MarkDistinctNode;
+import io.trino.sql.planner.plan.NonReadingTableExecuteNode;
 import io.trino.sql.planner.plan.OffsetNode;
 import io.trino.sql.planner.plan.OutputNode;
 import io.trino.sql.planner.plan.PatternRecognitionNode;
@@ -1382,6 +1383,14 @@ public class PlanPrinter
                 Symbol symbol = node.getColumns().get(i);
                 nodeOutput.appendDetailsLine("%s := %s", name, symbol);
             }
+
+            return processChildren(node, context);
+        }
+
+        @Override
+        public Void visitTableExecuteCoordinatorOnly(NonReadingTableExecuteNode node, Void context)
+        {
+            addNode(node, "ExecuteCoordinatorOnly", format("[%s]", node.getExecuteHandle()));
 
             return processChildren(node, context);
         }

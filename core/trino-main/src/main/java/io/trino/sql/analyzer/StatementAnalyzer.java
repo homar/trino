@@ -1093,10 +1093,11 @@ class StatementAnalyzer
 
             TableExecuteHandle executeHandle =
                     metadata.getTableHandleForExecute(
-                                    session,
-                                    tableHandle,
-                                    procedureName,
-                                    tableProperties)
+                            session,
+                            tableHandle,
+                            procedureName,
+                            tableProperties,
+                            procedureMetadata.getExecutionMode().isReadsData())
                             .orElseThrow(() -> semanticException(NOT_SUPPORTED, node, "Procedure '%s' cannot be executed on table '%s'", procedureName, tableName));
 
             analysis.setTableExecuteHandle(executeHandle);

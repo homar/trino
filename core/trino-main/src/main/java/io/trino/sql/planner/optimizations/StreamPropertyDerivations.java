@@ -45,6 +45,7 @@ import io.trino.sql.planner.plan.IndexSourceNode;
 import io.trino.sql.planner.plan.JoinNode;
 import io.trino.sql.planner.plan.LimitNode;
 import io.trino.sql.planner.plan.MarkDistinctNode;
+import io.trino.sql.planner.plan.NonReadingTableExecuteNode;
 import io.trino.sql.planner.plan.OutputNode;
 import io.trino.sql.planner.plan.PatternRecognitionNode;
 import io.trino.sql.planner.plan.PlanNode;
@@ -449,6 +450,12 @@ public final class StreamPropertyDerivations
             StreamProperties properties = Iterables.getOnlyElement(inputProperties);
             // table execute only outputs the row count and fragments
             return properties.withUnspecifiedPartitioning();
+        }
+
+        @Override
+        public StreamProperties visitTableExecuteCoordinatorOnly(NonReadingTableExecuteNode node, List<StreamProperties> context)
+        {
+            return StreamProperties.singleStream();
         }
 
         @Override

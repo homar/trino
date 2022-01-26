@@ -21,13 +21,6 @@ public final class TableProcedureExecutionMode
     public TableProcedureExecutionMode(boolean readsData, boolean supportsFilter)
     {
         if (!readsData) {
-            // TODO currently only table procedures which process data are supported
-            // this is temporary check to be dropped when execution flow will be added for
-            // table procedures which do not read data
-            throw new IllegalArgumentException("procedures that do not read data are not supported yet");
-        }
-
-        if (!readsData) {
             if (supportsFilter) {
                 throw new IllegalArgumentException("filtering not supported if table data is not processed");
             }

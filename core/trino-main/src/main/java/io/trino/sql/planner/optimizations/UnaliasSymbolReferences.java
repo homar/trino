@@ -53,6 +53,7 @@ import io.trino.sql.planner.plan.IntersectNode;
 import io.trino.sql.planner.plan.JoinNode;
 import io.trino.sql.planner.plan.LimitNode;
 import io.trino.sql.planner.plan.MarkDistinctNode;
+import io.trino.sql.planner.plan.NonReadingTableExecuteNode;
 import io.trino.sql.planner.plan.OffsetNode;
 import io.trino.sql.planner.plan.OutputNode;
 import io.trino.sql.planner.plan.PatternRecognitionNode;
@@ -645,6 +646,24 @@ public class UnaliasSymbolReferences
             TableExecuteNode rewrittenTableExecute = mapper.map(node, rewrittenSource.getRoot());
 
             return new PlanAndMappings(rewrittenTableExecute, mapping);
+        }
+
+        @Override
+        public PlanAndMappings visitTableExecuteCoordinatorOnly(NonReadingTableExecuteNode node, UnaliasContext context)
+        {
+            Map<Symbol, Symbol> mapping = new HashMap<>(context.getCorrelationMapping());
+            SymbolMapper mapper = symbolMapper(mapping);
+
+            Symbol newOutput = mapper.map(node.getOutput());
+
+            return new PlanAndMappings(
+                    new NonReadingTableExecuteNode(
+                            node.getId(),
+                            newOutput,
+                            node.getExecuteHandle(),
+                            node.getSourceHandle(),
+                            node.getSchemaTableName()),
+                    mapping);
         }
 
         @Override

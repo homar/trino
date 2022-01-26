@@ -56,6 +56,7 @@ import io.trino.sql.planner.plan.DeleteNode;
 import io.trino.sql.planner.plan.ExplainAnalyzeNode;
 import io.trino.sql.planner.plan.FilterNode;
 import io.trino.sql.planner.plan.LimitNode;
+import io.trino.sql.planner.plan.NonReadingTableExecuteNode;
 import io.trino.sql.planner.plan.OutputNode;
 import io.trino.sql.planner.plan.PlanNode;
 import io.trino.sql.planner.plan.ProjectNode;
@@ -813,6 +814,16 @@ public class LogicalPlanner
         TableHandle tableHandle = analysis.getTableHandle(table);
         QualifiedObjectName tableName = createQualifiedObjectName(session, statement, table.getName());
         TableExecuteHandle executeHandle = analysis.getTableExecuteHandle().orElseThrow();
+
+        if (!executeHandle.isReadsData()) {
+            NonReadingTableExecuteNode node = new NonReadingTableExecuteNode(
+                    idAllocator.getNextId(),
+                    symbolAllocator.newSymbol("rows", BIGINT),
+                    executeHandle,
+                    Optional.of(tableHandle),
+                    tableName.asSchemaTableName());
+            return new RelationPlan(node, analysis.getRootScope(), node.getOutputSymbols(), Optional.empty());
+        }
 
         RelationPlan tableScanPlan = createRelationPlan(analysis, table);
         PlanBuilder sourcePlanBuilder = newPlanBuilder(tableScanPlan, analysis, ImmutableMap.of(), ImmutableMap.of());

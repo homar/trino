@@ -30,16 +30,19 @@ import static java.util.Objects.requireNonNull;
 public final class TableExecuteHandle
 {
     private final CatalogName catalogName;
+    private final boolean readsData;
     private final ConnectorTransactionHandle transactionHandle;
     private final ConnectorTableExecuteHandle connectorHandle;
 
     @JsonCreator
     public TableExecuteHandle(
             @JsonProperty("catalogName") CatalogName catalogName,
+            @JsonProperty("readsData") boolean readsData,
             @JsonProperty("transactionHandle") ConnectorTransactionHandle transactionHandle,
             @JsonProperty("connectorHandle") ConnectorTableExecuteHandle connectorHandle)
     {
         this.catalogName = requireNonNull(catalogName, "catalogName is null");
+        this.readsData = readsData;
         this.transactionHandle = requireNonNull(transactionHandle, "transactionHandle is null");
         this.connectorHandle = requireNonNull(connectorHandle, "connectorHandle is null");
     }
@@ -62,9 +65,15 @@ public final class TableExecuteHandle
         return connectorHandle;
     }
 
-    public TableExecuteHandle withConnectorHandle(ConnectorTableExecuteHandle connectorHandle)
+    @JsonProperty
+    public boolean isReadsData()
     {
-        return new TableExecuteHandle(catalogName, transactionHandle, connectorHandle);
+        return readsData;
+    }
+
+    public TableExecuteHandle withConnectorHandle(ConnectorTableExecuteHandle connectorHandle, boolean readsData)
+    {
+        return new TableExecuteHandle(catalogName, readsData, transactionHandle, connectorHandle);
     }
 
     @Override
@@ -76,16 +85,17 @@ public final class TableExecuteHandle
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        TableExecuteHandle o = (TableExecuteHandle) obj;
-        return Objects.equals(this.catalogName, o.catalogName) &&
-                Objects.equals(this.transactionHandle, o.transactionHandle) &&
-                Objects.equals(this.connectorHandle, o.connectorHandle);
+        TableExecuteHandle that = (TableExecuteHandle) obj;
+        return readsData == that.readsData &&
+                Objects.equals(catalogName, that.catalogName) &&
+                Objects.equals(transactionHandle, that.transactionHandle) &&
+                Objects.equals(connectorHandle, that.connectorHandle);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(catalogName, transactionHandle, connectorHandle);
+        return Objects.hash(catalogName, readsData, transactionHandle, connectorHandle);
     }
 
     @Override

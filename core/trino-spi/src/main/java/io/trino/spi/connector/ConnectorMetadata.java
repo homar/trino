@@ -148,6 +148,14 @@ public interface ConnectorMetadata
     }
 
     /**
+     * Execute table execute on coordinator node only
+     */
+    default void executeTableExecute(ConnectorSession session, ConnectorTableExecuteHandle tableExecuteHandle)
+    {
+        throw new TrinoException(GENERIC_INTERNAL_ERROR, "ConnectorMetadata getTableHandleForExecute() is implemented without executeTableExecute()");
+    }
+
+    /**
      * Returns the system table for the specified table name, if one exists.
      * The system tables handled via {@link #getSystemTable} differ form those returned by {@link Connector#getSystemTables()}.
      * The former mechanism allows dynamic resolution of system tables, while the latter is

@@ -86,6 +86,7 @@ import io.trino.operator.SpatialJoinOperator.SpatialJoinOperatorFactory;
 import io.trino.operator.StageExecutionDescriptor;
 import io.trino.operator.StatisticsWriterOperator.StatisticsWriterOperatorFactory;
 import io.trino.operator.StreamingAggregationOperator;
+import io.trino.operator.TableCoordinatorOnlyExecuteOperator;
 import io.trino.operator.TableDeleteOperator.TableDeleteOperatorFactory;
 import io.trino.operator.TableScanOperator.TableScanOperatorFactory;
 import io.trino.operator.TaskContext;
@@ -191,6 +192,7 @@ import io.trino.sql.planner.plan.IndexSourceNode;
 import io.trino.sql.planner.plan.JoinNode;
 import io.trino.sql.planner.plan.LimitNode;
 import io.trino.sql.planner.plan.MarkDistinctNode;
+import io.trino.sql.planner.plan.NonReadingTableExecuteNode;
 import io.trino.sql.planner.plan.OutputNode;
 import io.trino.sql.planner.plan.PatternRecognitionNode;
 import io.trino.sql.planner.plan.PatternRecognitionNode.Measure;
@@ -3295,6 +3297,21 @@ public class LocalExecutionPlanner
                 symbolCounter++;
             }
             return Arrays.asList(columnValueAndRowIdChannels);
+        }
+
+        @Override
+        public PhysicalOperation visitTableExecuteCoordinatorOnly(NonReadingTableExecuteNode node, LocalExecutionPlanContext context)
+        {
+            context.setDriverInstanceCount(1);
+            TableCoordinatorOnlyExecuteOperator.TableCoordinatorOnlyExecuteOperatorFactory operatorFactory =
+                    new TableCoordinatorOnlyExecuteOperator.TableCoordinatorOnlyExecuteOperatorFactory(
+                            context.getNextOperatorId(),
+                            node.getId(),
+                            metadata,
+                            session,
+                            node.getExecuteHandle());
+
+            return new PhysicalOperation(operatorFactory, makeLayout(node), context, UNGROUPED_EXECUTION);
         }
 
         @Override

@@ -95,13 +95,16 @@ public interface Metadata
             Session session,
             TableHandle tableHandle,
             String procedureName,
-            Map<String, Object> executeProperties);
+            Map<String, Object> executeProperties,
+            boolean readsData);
 
     Optional<NewTableLayout> getLayoutForTableExecute(Session session, TableExecuteHandle tableExecuteHandle);
 
     BeginTableExecuteResult<TableExecuteHandle, TableHandle> beginTableExecute(Session session, TableExecuteHandle handle, TableHandle updatedSourceTableHandle);
 
     void finishTableExecute(Session session, TableExecuteHandle handle, Collection<Slice> fragments, List<Object> tableExecuteState);
+
+    void executeTableExecute(Session session, TableExecuteHandle handle);
 
     TableProperties getTableProperties(Session session, TableHandle handle);
 

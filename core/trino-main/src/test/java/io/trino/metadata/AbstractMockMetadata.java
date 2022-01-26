@@ -129,7 +129,7 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public Optional<TableExecuteHandle> getTableHandleForExecute(Session session, TableHandle tableHandle, String procedureName, Map<String, Object> executeProperties)
+    public Optional<TableExecuteHandle> getTableHandleForExecute(Session session, TableHandle tableHandle, String procedureName, Map<String, Object> executeProperties, boolean readsData)
     {
         throw new UnsupportedOperationException();
     }
@@ -148,6 +148,12 @@ public abstract class AbstractMockMetadata
 
     @Override
     public void finishTableExecute(Session session, TableExecuteHandle handle, Collection<Slice> fragments, List<Object> tableExecuteState)
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void executeTableExecute(Session session, TableExecuteHandle handle)
     {
         throw new UnsupportedOperationException();
     }

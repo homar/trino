@@ -357,7 +357,7 @@ public final class MetadataManager
     }
 
     @Override
-    public Optional<TableExecuteHandle> getTableHandleForExecute(Session session, TableHandle tableHandle, String procedure, Map<String, Object> executeProperties)
+    public Optional<TableExecuteHandle> getTableHandleForExecute(Session session, TableHandle tableHandle, String procedure, Map<String, Object> executeProperties, boolean readsData)
     {
         requireNonNull(session, "session is null");
         requireNonNull(tableHandle, "tableHandle is null");
@@ -377,6 +377,7 @@ public final class MetadataManager
 
         return executeHandle.map(handle -> new TableExecuteHandle(
                 catalogName,
+                readsData,
                 tableHandle.getTransaction(),
                 handle));
     }
@@ -401,7 +402,7 @@ public final class MetadataManager
         BeginTableExecuteResult<ConnectorTableExecuteHandle, ConnectorTableHandle> connectorBeginResult = metadata.beginTableExecute(session.toConnectorSession(), tableExecuteHandle.getConnectorHandle(), sourceHandle.getConnectorHandle());
 
         return new BeginTableExecuteResult<>(
-                tableExecuteHandle.withConnectorHandle(connectorBeginResult.getTableExecuteHandle()),
+                tableExecuteHandle.withConnectorHandle(connectorBeginResult.getTableExecuteHandle(), tableExecuteHandle.isReadsData()),
                 sourceHandle.withConnectorHandle(connectorBeginResult.getSourceHandle()));
     }
 
@@ -411,6 +412,14 @@ public final class MetadataManager
         CatalogName catalogName = tableExecuteHandle.getCatalogName();
         ConnectorMetadata metadata = getMetadata(session, catalogName);
         metadata.finishTableExecute(session.toConnectorSession(catalogName), tableExecuteHandle.getConnectorHandle(), fragments, tableExecuteState);
+    }
+
+    @Override
+    public void executeTableExecute(Session session, TableExecuteHandle tableExecuteHandle)
+    {
+        CatalogName catalogName = tableExecuteHandle.getCatalogName();
+        ConnectorMetadata metadata = getMetadata(session, catalogName);
+        metadata.executeTableExecute(session.toConnectorSession(catalogName), tableExecuteHandle.getConnectorHandle());
     }
 
     @Override

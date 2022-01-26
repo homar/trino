@@ -1163,6 +1163,7 @@ public class PlanBuilder
                 new TableWriterNode.TableExecuteTarget(
                         new TableExecuteHandle(
                                 new CatalogName("testConnector"),
+                                false,
                                 TestingTransactionHandle.create(),
                                 new TestingTableExecuteHandle()),
                         Optional.empty(),
