@@ -108,6 +108,7 @@ import static java.lang.String.join;
 import static java.util.Collections.nCopies;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
+import static java.util.stream.Collectors.toSet;
 import static java.util.stream.IntStream.range;
 import static org.apache.iceberg.FileFormat.ORC;
 import static org.apache.iceberg.FileFormat.PARQUET;
@@ -3325,5 +3326,52 @@ public abstract class BaseIcebergConnectorTest
         // as we force repartitioning there should be only 3 partitions
         assertThat(updatedFiles).hasSize(3);
         assertThat(getAllDataFilesFromTableDirectory(tableName)).containsExactlyInAnyOrderElementsOf(concat(initialFiles, updatedFiles));
+    }
+
+    @Test
+    public void testVacuumParameterValidation()
+    {
+        assertQueryFails(
+                "ALTER TABLE no_such_table_exists EXECUTE VACUUM",
+                "\\Qline 1:1: Table 'iceberg.tpch.no_such_table_exists' does not exist");
+        assertQueryFails(
+                "ALTER TABLE nation EXECUTE VACUUM (retention_threshold => '33')",
+                "\\QUnable to set procedure property 'retention_threshold' to ['33']: duration is not a valid data duration string: 33");
+        assertQueryFails(
+                "ALTER TABLE nation EXECUTE VACUUM (retention_threshold => '33mb')",
+                "\\QUnable to set procedure property 'retention_threshold' to ['33mb']: Unknown time unit: mb");
+    }
+
+    @Test
+    public void testVacuum()
+            throws Exception
+    {
+        String tableName = "test_vacuuming_" + randomTableSuffix();
+        assertUpdate("CREATE TABLE " + tableName + " (key varchar, value integer)");
+        assertUpdate("INSERT INTO " + tableName + " VALUES ('one', 1)", 1);
+
+        Thread.sleep(2000);
+        assertUpdate("INSERT INTO " + tableName + " VALUES ('two', 2)", 1);
+        assertThat(query("SELECT sum(value), listagg(key, ' ') WITHIN GROUP (ORDER BY key) FROM " + tableName))
+                .matches("VALUES (BIGINT '3', VARCHAR 'one two')");
+
+        Set<Long> initialSnapshots = getSnapshotIds(tableName);
+
+        assertQuerySucceeds("ALTER TABLE " + tableName + " EXECUTE VACUUM (retention_threshold => '1s')");
+
+        assertThat(query("SELECT sum(value), listagg(key, ' ') WITHIN GROUP (ORDER BY key) FROM " + tableName))
+                .matches("VALUES (BIGINT '3', VARCHAR 'one two')");
+        Set<Long> updatedSnapshots = getSnapshotIds(tableName);
+        assertThat(updatedSnapshots.size()).isLessThan(initialSnapshots.size());
+        assertThat(updatedSnapshots.size()).isEqualTo(1);
+        assertThat(initialSnapshots).containsAll(updatedSnapshots);
+    }
+
+    private Set<Long> getSnapshotIds(String tableName)
+    {
+        return getQueryRunner().execute(format("SELECT snapshot_id FROM \"%s$snapshots\"", tableName))
+                .getMaterializedRows().stream()
+                .map(row -> (long) row.getField(0))
+                .collect(toSet());
     }
 }

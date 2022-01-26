@@ -124,8 +124,9 @@ public class IcebergPageSinkProvider
                         optimizeHandle.getFileFormat(),
                         optimizeHandle.getTableStorageProperties(),
                         maxOpenPartitions);
+            case VACUUM:
+                throw new IllegalArgumentException("VACUUM should not need a page sink");
         }
-
         throw new IllegalArgumentException("Unknown procedure: " + executeHandle.getProcedureId());
     }
 }

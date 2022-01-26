@@ -13,14 +13,24 @@
  */
 package io.trino.plugin.iceberg.procedure;
 
-import com.fasterxml.jackson.annotation.JsonSubTypes;
-import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import io.airlift.units.Duration;
 
-@JsonTypeInfo(
-        use = JsonTypeInfo.Id.NAME,
-        property = "@type")
-@JsonSubTypes({
-        @JsonSubTypes.Type(value = IcebergOptimizeHandle.class, name = "optimize"),
-        @JsonSubTypes.Type(value = IcebergVacuumHandle.class, name = "vacuum"),
-})
-public abstract class IcebergProcedureHandle {}
+public class IcebergVacuumHandle
+        extends IcebergProcedureHandle
+{
+    private final Duration retentionThreshold;
+
+    @JsonCreator
+    public IcebergVacuumHandle(Duration retentionThreshold)
+    {
+        this.retentionThreshold = retentionThreshold;
+    }
+
+    @JsonProperty
+    public Duration getRetentionThreshold()
+    {
+        return retentionThreshold;
+    }
+}
