@@ -38,7 +38,8 @@ public class TestHiveFileMetastore
                 new NodeVersion("test_version"),
                 HDFS_ENVIRONMENT,
                 new HiveMetastoreConfig()
-                        .setHideDeltaLakeTables(true),
+                        .setHideDeltaLakeTables(true)
+                        .isHideDeltaLakeTables(),
                 new FileHiveMetastoreConfig()
                         .setCatalogDirectory(baseDir.toURI().toString())
                         .setMetastoreUser("test"));

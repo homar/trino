@@ -119,7 +119,7 @@ public class TestConnectorPushdownRulesWithIceberg
         metastore = new FileHiveMetastore(
                 new NodeVersion("testversion"),
                 environment,
-                new HiveMetastoreConfig(),
+                new HiveMetastoreConfig().isHideDeltaLakeTables(),
                 new FileHiveMetastoreConfig()
                         .setCatalogDirectory(baseDir.toURI().toString())
                         .setMetastoreUser("test"));

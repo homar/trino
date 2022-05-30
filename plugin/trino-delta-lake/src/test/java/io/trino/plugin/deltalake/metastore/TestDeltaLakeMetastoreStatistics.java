@@ -123,7 +123,7 @@ public class TestDeltaLakeMetastoreStatistics
         hiveMetastore = new FileHiveMetastore(
                 new NodeVersion("test_version"),
                 hdfsEnvironment,
-                new HiveMetastoreConfig(),
+                new HiveMetastoreConfig().isHideDeltaLakeTables(),
                 new FileHiveMetastoreConfig()
                         .setCatalogDirectory(metastoreDir.toURI().toString())
                         .setMetastoreUser("test"));

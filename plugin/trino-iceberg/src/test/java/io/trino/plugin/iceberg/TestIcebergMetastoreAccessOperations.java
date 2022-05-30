@@ -82,7 +82,7 @@ public class TestIcebergMetastoreAccessOperations
         HiveMetastore hiveMetastore = new FileHiveMetastore(
                 new NodeVersion("testversion"),
                 hdfsEnvironment,
-                new HiveMetastoreConfig(),
+                new HiveMetastoreConfig().isHideDeltaLakeTables(),
                 new FileHiveMetastoreConfig()
                         .setCatalogDirectory(baseDir.toURI().toString())
                         .setMetastoreUser("test"));

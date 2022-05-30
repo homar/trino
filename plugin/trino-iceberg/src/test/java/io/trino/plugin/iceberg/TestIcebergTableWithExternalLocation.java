@@ -73,7 +73,7 @@ public class TestIcebergTableWithExternalLocation
         metastore = new FileHiveMetastore(
                 new NodeVersion("testversion"),
                 hdfsEnvironment,
-                new HiveMetastoreConfig(),
+                new HiveMetastoreConfig().isHideDeltaLakeTables(),
                 config);
 
         return IcebergQueryRunner.builder()

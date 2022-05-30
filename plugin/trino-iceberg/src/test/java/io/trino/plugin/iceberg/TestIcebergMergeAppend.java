@@ -63,7 +63,7 @@ public class TestIcebergMergeAppend
         HiveMetastore metastore = new FileHiveMetastore(
                 new NodeVersion("testversion"),
                 hdfsEnvironment,
-                new HiveMetastoreConfig(),
+                new HiveMetastoreConfig().isHideDeltaLakeTables(),
                 new FileHiveMetastoreConfig()
                         .setCatalogDirectory(baseDir.toURI().toString())
                         .setMetastoreUser("test"));
