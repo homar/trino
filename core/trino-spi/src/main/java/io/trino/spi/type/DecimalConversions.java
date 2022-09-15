@@ -156,6 +156,22 @@ public final class DecimalConversions
         }
     }
 
+    public static Int128 varcharToToLongDecimal(String value, long precision, long scale)
+    {
+        try {
+            // todo consider changing this implementation to more performant one which does not use intermediate String objects
+            BigDecimal bigDecimal = new BigDecimal(value).setScale(intScale(scale), HALF_UP);
+            Int128 decimal = Decimals.valueOf(bigDecimal);
+            if (Decimals.overflows(decimal, intScale(precision))) {
+                throw new TrinoException(INVALID_CAST_ARGUMENT, format("Cannot cast Varchar '%s' to DECIMAL(%s, %s)", value, precision, scale));
+            }
+            return decimal;
+        }
+        catch (ArithmeticException e) {
+            throw new TrinoException(INVALID_CAST_ARGUMENT, format("Cannot cast Varchar '%s' to DECIMAL(%s, %s)", value, precision, scale));
+        }
+    }
+
     public static long shortToShortCast(
             long value,
             long sourcePrecision,

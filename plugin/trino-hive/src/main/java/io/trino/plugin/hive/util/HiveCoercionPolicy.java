@@ -26,6 +26,7 @@ import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import java.util.List;
 
 import static io.trino.plugin.hive.HiveType.HIVE_BYTE;
+import static io.trino.plugin.hive.HiveType.HIVE_DECIMAL;
 import static io.trino.plugin.hive.HiveType.HIVE_DOUBLE;
 import static io.trino.plugin.hive.HiveType.HIVE_FLOAT;
 import static io.trino.plugin.hive.HiveType.HIVE_INT;
@@ -55,6 +56,7 @@ public final class HiveCoercionPolicy
         Type toType = typeManager.getType(toHiveType.getTypeSignature());
         if (fromType instanceof VarcharType) {
             return toType instanceof VarcharType ||
+                    toType instanceof DecimalType ||
                     toHiveType.equals(HIVE_BYTE) ||
                     toHiveType.equals(HIVE_SHORT) ||
                     toHiveType.equals(HIVE_INT) ||

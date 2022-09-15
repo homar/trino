@@ -20,6 +20,7 @@ import io.trino.spi.type.DecimalType;
 import io.trino.spi.type.DoubleType;
 import io.trino.spi.type.Int128;
 import io.trino.spi.type.RealType;
+import io.trino.spi.type.VarcharType;
 
 import java.util.function.Function;
 
@@ -35,6 +36,7 @@ import static io.trino.spi.type.DecimalConversions.shortDecimalToDouble;
 import static io.trino.spi.type.DecimalConversions.shortDecimalToReal;
 import static io.trino.spi.type.DecimalConversions.shortToLongCast;
 import static io.trino.spi.type.DecimalConversions.shortToShortCast;
+import static io.trino.spi.type.DecimalConversions.varcharToToLongDecimal;
 import static io.trino.spi.type.Decimals.longTenToNth;
 import static io.trino.spi.type.DoubleType.DOUBLE;
 import static io.trino.spi.type.RealType.REAL;
@@ -276,6 +278,14 @@ public final class DecimalCoercers
         return new RealToLongDecimalCoercer(toType);
     }
 
+    public static Function<Block, Block> createVarcharToDecimalCoercer(DecimalType toType)
+    {
+        if (toType.isShort()) {
+            return new VarcharToShortDecimalCoercer(toType);
+        }
+        return new VarcharToLongDecimalCoercer(toType);
+    }
+
     private static class RealToShortDecimalCoercer
             extends TypeCoercer<RealType, DecimalType>
     {
@@ -305,6 +315,38 @@ public final class DecimalCoercers
         {
             toType.writeObject(blockBuilder,
                     realToLongDecimal(fromType.getLong(block, position), toType.getPrecision(), toType.getScale()));
+        }
+    }
+
+    private static class VarcharToShortDecimalCoercer
+            extends TypeCoercer<VarcharType, DecimalType>
+    {
+
+        protected VarcharToShortDecimalCoercer(DecimalType toType)
+        {
+            super(VarcharType.VARCHAR, toType);
+        }
+
+        @Override
+        protected void applyCoercedValue(BlockBuilder blockBuilder, Block block, int position)
+        {
+            toType.writeLong(blockBuilder, doubleToShortDecimal(Double.parseDouble(fromType.getSlice(block, position).toStringUtf8()), toType.getPrecision(), toType.getScale()));
+        }
+    }
+    private static class VarcharToLongDecimalCoercer
+            extends TypeCoercer<VarcharType, DecimalType>
+    {
+
+        protected VarcharToLongDecimalCoercer(DecimalType toType)
+        {
+            super(VarcharType.VARCHAR, toType);
+        }
+
+        @Override
+        protected void applyCoercedValue(BlockBuilder blockBuilder, Block block, int position)
+        {
+            toType.writeObject(blockBuilder,
+                    varcharToToLongDecimal(fromType.getSlice(block, position).toStringUtf8(), toType.getPrecision(), toType.getScale()));
         }
     }
 }

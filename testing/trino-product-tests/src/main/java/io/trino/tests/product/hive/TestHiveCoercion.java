@@ -129,6 +129,9 @@ public class TestHiveCoercion
                         //"    double_to_decimal          DOUBLE," + // this coercion is not permitted in Hive 3. TODO test this on Hive < 3.
                         "    decimal_to_float           DECIMAL(10,5)," +
                         "    decimal_to_double          DECIMAL(10,5)," +
+                        "    varchar_to_short_decimal   STRING," +
+                        "    varchar_to_long_decimal    STRING," +
+                        "    bounded_varchar_to_decimal VARCHAR(12)," +
                         "    varchar_to_bigger_varchar  VARCHAR(3)," +
                         "    varchar_to_smaller_varchar VARCHAR(3)" +
                         ") " +
@@ -306,6 +309,9 @@ public class TestHiveCoercion
                 // "double_to_decimal",
                 "decimal_to_float",
                 "decimal_to_double",
+                "varchar_to_short_decimal",
+                "varchar_to_long_decimal",
+                "bounded_varchar_to_decimal",
                 "varchar_to_bigger_varchar",
                 "varchar_to_smaller_varchar",
                 "id");
@@ -349,6 +355,9 @@ public class TestHiveCoercion
                         //"  DOUBLE '12345.12345', " +
                         "  DECIMAL '12345.12345', " +
                         "  DECIMAL '12345.12345', " +
+                        "  '12345.12345', " +
+                        "  '12345678.123456123456', " +
+                        "  '12345.12345', " +
                         "  'abc', " +
                         "  'abc', " +
                         "  1), " +
@@ -373,6 +382,9 @@ public class TestHiveCoercion
                         //"  DOUBLE '-12345.12345', " +
                         "  DECIMAL '-12345.12345', " +
                         "  DECIMAL '-12345.12345', " +
+                        "  '-12345.12345', " +
+                        "  '-12345678.123456123456', " +
+                        "  '-12345.12345', " +
                         "  '\uD83D\uDCB0\uD83D\uDCB0\uD83D\uDCB0', " +
                         "  '\uD83D\uDCB0\uD83D\uDCB0\uD83D\uDCB0', " +
                         "  1)",
@@ -480,6 +492,18 @@ public class TestHiveCoercion
                 .put("decimal_to_double", Arrays.asList(
                         12345.12345,
                         -12345.12345))
+                .put("varchar_to_short_decimal", Arrays.asList(
+                        new BigDecimal("12345.12345"),
+                        new BigDecimal("-12345.12345")
+                ))
+                .put("varchar_to_long_decimal", Arrays.asList(
+                        new BigDecimal("12345678.123456123456"),
+                        new BigDecimal("-12345678.123456123456")
+                ))
+                .put("bounded_varchar_to_decimal", Arrays.asList(
+                        new BigDecimal("12345.12345"),
+                        new BigDecimal("-12345.12345")
+                ))
                 .put("varchar_to_bigger_varchar", Arrays.asList(
                         "abc",
                         "\uD83D\uDCB0\uD83D\uDCB0\uD83D\uDCB0"))
@@ -637,6 +661,9 @@ public class TestHiveCoercion
                 //row("double_to_decimal", "decimal(10,5)"),
                 row("decimal_to_float", floatType),
                 row("decimal_to_double", "double"),
+                row("varchar_to_short_decimal", "decimal(10,2)"),
+                row("varchar_to_long_decimal", "decimal(22,2)"),
+                row("bounded_varchar_to_decimal", "decimal(12,0)"),
                 row("varchar_to_bigger_varchar", "varchar(4)"),
                 row("varchar_to_smaller_varchar", "varchar(2)"),
                 row("id", "bigint"));
@@ -677,6 +704,9 @@ public class TestHiveCoercion
                 //.put("double_to_decimal", DECIMAL)
                 .put("decimal_to_float", floatType)
                 .put("decimal_to_double", DOUBLE)
+                .put("varchar_to_short_decimal", DECIMAL)
+                .put("varchar_to_long_decimal", DECIMAL)
+                .put("bounded_varchar_to_decimal", DECIMAL)
                 .put("varchar_to_bigger_varchar", VARCHAR)
                 .put("varchar_to_smaller_varchar", VARCHAR)
                 .put("id", BIGINT)
@@ -710,6 +740,9 @@ public class TestHiveCoercion
         //onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN double_to_decimal double_to_decimal DECIMAL(10,5)", tableName));
         onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN decimal_to_float decimal_to_float %s", tableName, floatType));
         onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN decimal_to_double decimal_to_double double", tableName));
+        onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN varchar_to_short_decimal varchar_to_short_decimal DECIMAL(10,2)", tableName));
+        onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN varchar_to_long_decimal varchar_to_long_decimal DECIMAL(22,2)", tableName));
+        onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN bounded_varchar_to_decimal bounded_varchar_to_decimal DECIMAL(12,0)", tableName));
         onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN varchar_to_bigger_varchar varchar_to_bigger_varchar varchar(4)", tableName));
         onHive().executeQuery(format("ALTER TABLE %s CHANGE COLUMN varchar_to_smaller_varchar varchar_to_smaller_varchar varchar(2)", tableName));
     }

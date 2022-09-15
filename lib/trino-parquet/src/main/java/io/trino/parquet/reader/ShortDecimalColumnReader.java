@@ -17,13 +17,16 @@ import io.trino.parquet.PrimitiveField;
 import io.trino.spi.TrinoException;
 import io.trino.spi.block.BlockBuilder;
 import io.trino.spi.type.DecimalType;
+import io.trino.spi.type.Decimals;
 import io.trino.spi.type.Type;
+import io.trino.spi.type.VarcharType;
 import org.apache.parquet.io.ParquetDecodingException;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static io.airlift.slice.Slices.utf8Slice;
 import static io.trino.parquet.ParquetTypeUtils.getShortDecimalValue;
 import static io.trino.spi.StandardErrorCode.NOT_SUPPORTED;
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -57,7 +60,7 @@ public class ShortDecimalColumnReader
     @Override
     protected void readValue(BlockBuilder blockBuilder, Type trinoType)
     {
-        if (!((trinoType instanceof DecimalType) || isIntegerType(trinoType))) {
+        if (!((trinoType instanceof DecimalType) || (trinoType instanceof VarcharType) || isIntegerType(trinoType))) {
             throw new ParquetDecodingException(format("Unsupported Trino column type (%s) for Parquet column (%s)", trinoType, field.getDescriptor()));
         }
 
@@ -106,6 +109,8 @@ public class ShortDecimalColumnReader
                         trinoDecimalType.getPrecision(),
                         trinoDecimalType.getScale()));
             }
+        } else if(trinoType instanceof VarcharType) {
+            trinoType.writeSlice(blockBuilder, utf8Slice(Decimals.toString(value, parquetDecimalType.getScale())));
         }
         else {
             if (parquetDecimalType.getScale() != 0) {

@@ -45,6 +45,7 @@ import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.binaryTypeI
 import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.booleanTypeInfo;
 import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.byteTypeInfo;
 import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.dateTypeInfo;
+import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.decimalTypeInfo;
 import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.doubleTypeInfo;
 import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.floatTypeInfo;
 import static org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory.intTypeInfo;
@@ -70,6 +71,7 @@ public final class HiveType
     public static final HiveType HIVE_TIMESTAMP = new HiveType(timestampTypeInfo);
     public static final HiveType HIVE_DATE = new HiveType(dateTypeInfo);
     public static final HiveType HIVE_BINARY = new HiveType(binaryTypeInfo);
+    public static final HiveType HIVE_DECIMAL = new HiveType(decimalTypeInfo);
 
     private final HiveTypeName hiveTypeName;
     private final TypeInfo typeInfo;

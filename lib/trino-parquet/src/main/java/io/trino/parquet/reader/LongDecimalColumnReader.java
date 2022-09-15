@@ -16,11 +16,14 @@ package io.trino.parquet.reader;
 import io.trino.parquet.PrimitiveField;
 import io.trino.spi.block.BlockBuilder;
 import io.trino.spi.type.DecimalType;
+import io.trino.spi.type.Decimals;
 import io.trino.spi.type.Int128;
 import io.trino.spi.type.Type;
+import io.trino.spi.type.VarcharType;
 import org.apache.parquet.io.ParquetDecodingException;
 import org.apache.parquet.io.api.Binary;
 
+import static io.airlift.slice.Slices.utf8Slice;
 import static io.trino.spi.type.DecimalConversions.longToLongCast;
 import static io.trino.spi.type.DecimalConversions.longToShortCast;
 import static java.lang.String.format;
@@ -40,30 +43,35 @@ public class LongDecimalColumnReader
     @Override
     protected void readValue(BlockBuilder blockBuilder, Type trinoType)
     {
-        if (!(trinoType instanceof DecimalType)) {
+        if (!(trinoType instanceof DecimalType || trinoType instanceof VarcharType)) {
             throw new ParquetDecodingException(format("Unsupported Trino column type (%s) for Parquet column (%s)", trinoType, field.getDescriptor()));
         }
-
-        DecimalType trinoDecimalType = (DecimalType) trinoType;
 
         Binary binary = valuesReader.readBytes();
         Int128 value = Int128.fromBigEndian(binary.getBytes());
 
-        if (trinoDecimalType.isShort()) {
-            trinoType.writeLong(blockBuilder, longToShortCast(
-                    value,
-                    parquetDecimalType.getPrecision(),
-                    parquetDecimalType.getScale(),
-                    trinoDecimalType.getPrecision(),
-                    trinoDecimalType.getScale()));
+        if (trinoType instanceof VarcharType) {
+            trinoType.writeSlice(blockBuilder, utf8Slice(Decimals.toString(value, parquetDecimalType.getScale())));
         }
         else {
-            trinoType.writeObject(blockBuilder, longToLongCast(
-                    value,
-                    parquetDecimalType.getPrecision(),
-                    parquetDecimalType.getScale(),
-                    trinoDecimalType.getPrecision(),
-                    trinoDecimalType.getScale()));
+            DecimalType trinoDecimalType = (DecimalType) trinoType;
+
+            if (trinoDecimalType.isShort()) {
+                trinoType.writeLong(blockBuilder, longToShortCast(
+                        value,
+                        parquetDecimalType.getPrecision(),
+                        parquetDecimalType.getScale(),
+                        trinoDecimalType.getPrecision(),
+                        trinoDecimalType.getScale()));
+            }
+            else {
+                trinoType.writeObject(blockBuilder, longToLongCast(
+                        value,
+                        parquetDecimalType.getPrecision(),
+                        parquetDecimalType.getScale(),
+                        trinoDecimalType.getPrecision(),
+                        trinoDecimalType.getScale()));
+            }
         }
     }
 }
