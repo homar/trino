@@ -14,6 +14,9 @@
 package io.trino.spi.function.table;
 
 import io.trino.spi.Experimental;
+import io.trino.spi.connector.ColumnHandle;
+
+import java.util.Map;
 
 /**
  * An area to store all information necessary to execute the table function, gathered at analysis time
@@ -21,4 +24,13 @@ import io.trino.spi.Experimental;
 @Experimental(eta = "2022-10-31")
 public interface ConnectorTableFunctionHandle
 {
+    default Map<String, ColumnHandle> getColumnHandles()
+    {
+        return Map.of();
+    }
+
+    default boolean supportsPredicatePushdown()
+    {
+        return false;
+    }
 }

@@ -14,14 +14,19 @@
 package io.trino.sql.planner.plan;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.trino.metadata.TableFunctionHandle;
+import io.trino.spi.connector.ColumnHandle;
+import io.trino.spi.predicate.TupleDomain;
 import io.trino.sql.planner.OrderingScheme;
 import io.trino.sql.planner.Symbol;
 import io.trino.sql.planner.plan.TableFunctionNode.PassThroughSpecification;
+
+import javax.annotation.Nullable;
 
 import java.util.Collection;
 import java.util.List;
@@ -30,6 +35,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static java.util.Objects.requireNonNull;
@@ -69,6 +75,9 @@ public class TableFunctionProcessorNode
     private final Optional<Symbol> hashSymbol;
 
     private final TableFunctionHandle handle;
+
+    @Nullable // null on workers
+    private final TupleDomain<ColumnHandle> enforcedConstraint;
 
     @JsonCreator
     public TableFunctionProcessorNode(
@@ -114,6 +123,54 @@ public class TableFunctionProcessorNode
         checkArgument(preSorted == 0 || partitionBy.equals(prePartitioned), "to specify pre-sorted symbols, it is required that all partitioning symbols are pre-partitioned");
         this.hashSymbol = requireNonNull(hashSymbol, "hashSymbol is null");
         this.handle = requireNonNull(handle, "handle is null");
+        this.enforcedConstraint = null;
+    }
+
+    public TableFunctionProcessorNode(
+            PlanNodeId id,
+            String name,
+            List<Symbol> properOutputs,
+            Optional<PlanNode> source,
+            boolean pruneWhenEmpty,
+            List<PassThroughSpecification> passThroughSpecifications,
+            List<List<Symbol>> requiredSymbols,
+            Optional<Map<Symbol, Symbol>> markerSymbols,
+            Optional<DataOrganizationSpecification> specification,
+            Set<Symbol> prePartitioned,
+            int preSorted,
+            Optional<Symbol> hashSymbol,
+            TableFunctionHandle handle,
+            TupleDomain<ColumnHandle> enforcedConstraint)
+    {
+        super(id);
+        this.name = requireNonNull(name, "name is null");
+        this.properOutputs = ImmutableList.copyOf(properOutputs);
+        this.source = requireNonNull(source, "source is null");
+        this.pruneWhenEmpty = pruneWhenEmpty;
+        this.passThroughSpecifications = ImmutableList.copyOf(passThroughSpecifications);
+        this.requiredSymbols = requiredSymbols.stream()
+                .map(ImmutableList::copyOf)
+                .collect(toImmutableList());
+        this.markerSymbols = markerSymbols.map(ImmutableMap::copyOf);
+        this.specification = requireNonNull(specification, "specification is null");
+        this.prePartitioned = ImmutableSet.copyOf(prePartitioned);
+        Set<Symbol> partitionBy = specification
+                .map(DataOrganizationSpecification::getPartitionBy)
+                .map(ImmutableSet::copyOf)
+                .orElse(ImmutableSet.of());
+        checkArgument(partitionBy.containsAll(prePartitioned), "all pre-partitioned symbols must be contained in the partitioning list");
+        this.preSorted = preSorted;
+        checkArgument(
+                specification
+                        .flatMap(DataOrganizationSpecification::getOrderingScheme)
+                        .map(OrderingScheme::getOrderBy)
+                        .map(List::size)
+                        .orElse(0) >= preSorted,
+                "the number of pre-sorted symbols cannot be greater than the number of all ordering symbols");
+        checkArgument(preSorted == 0 || partitionBy.equals(prePartitioned), "to specify pre-sorted symbols, it is required that all partitioning symbols are pre-partitioned");
+        this.hashSymbol = requireNonNull(hashSymbol, "hashSymbol is null");
+        this.handle = requireNonNull(handle, "handle is null");
+        this.enforcedConstraint = requireNonNull(enforcedConstraint, "enforcedConstraint is null");
     }
 
     @JsonProperty
@@ -211,6 +268,14 @@ public class TableFunctionProcessorNode
         return symbols.build();
     }
 
+    @Nullable
+    @JsonIgnore
+    public TupleDomain<ColumnHandle> getEnforcedConstraint()
+    {
+        checkState(enforcedConstraint != null, "enforcedConstraint should only be used in planner. It is not transported to workers.");
+        return enforcedConstraint;
+    }
+
     @Override
     public <R, C> R accept(PlanVisitor<R, C> visitor, C context)
     {
@@ -234,6 +299,7 @@ public class TableFunctionProcessorNode
                 prePartitioned,
                 preSorted,
                 hashSymbol,
-                handle);
+                handle,
+                enforcedConstraint);
     }
 }
