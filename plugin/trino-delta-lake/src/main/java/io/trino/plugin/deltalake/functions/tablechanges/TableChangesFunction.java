@@ -34,6 +34,7 @@ import io.trino.spi.function.table.Descriptor;
 import io.trino.spi.function.table.ScalarArgument;
 import io.trino.spi.function.table.ScalarArgumentSpecification;
 import io.trino.spi.function.table.TableFunctionAnalysis;
+import io.trino.spi.predicate.TupleDomain;
 
 import java.util.List;
 import java.util.Map;
@@ -57,12 +58,12 @@ public class TableChangesFunction
     private static final String SCHEMA_NAME = "system";
     private static final String NAME = "table_changes";
     public static final SchemaFunctionName TABLE_CHANGES_NAME = new SchemaFunctionName(SCHEMA_NAME, NAME);
+    static final String CHANGE_TYPE_COLUMN_NAME = "_change_type";
+    static final String COMMIT_VERSION_COLUMN_NAME = "_commit_version";
+    static final String COMMIT_TIMESTAMP_COLUMN_NAME = "_commit_timestamp";
     public static final String SCHEMA_NAME_ARGUMENT = "SCHEMA_NAME";
     private static final String TABLE_NAME_ARGUMENT = "TABLE_NAME";
     private static final String SINCE_VERSION_ARGUMENT = "SINCE_VERSION";
-    private static final String CHANGE_TYPE_COLUMN_NAME = "_change_type";
-    private static final String COMMIT_VERSION_COLUMN_NAME = "_commit_version";
-    private static final String COMMIT_TIMESTAMP_COLUMN_NAME = "_commit_timestamp";
 
     private final DeltaLakeMetadataFactory deltaLakeMetadataFactory;
 
@@ -138,7 +139,13 @@ public class TableChangesFunction
         outputFields.add(new Descriptor.Field(COMMIT_TIMESTAMP_COLUMN_NAME, Optional.of(TIMESTAMP_TZ_MILLIS)));
 
         return TableFunctionAnalysis.builder()
-                .handle(new TableChangesTableFunctionHandle(schemaTableName, firstReadVersion, tableHandle.getReadVersion(), tableHandle.getLocation(), columnHandles))
+                .handle(new TableChangesTableFunctionHandle(
+                        schemaTableName,
+                        firstReadVersion,
+                        tableHandle.getReadVersion(),
+                        tableHandle.getLocation(),
+                        columnHandles,
+                        TupleDomain.all()))
                 .returnedType(new Descriptor(outputFields.build()))
                 .build();
     }

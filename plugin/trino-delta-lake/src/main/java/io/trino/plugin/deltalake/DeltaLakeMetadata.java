@@ -35,6 +35,7 @@ import io.trino.plugin.base.classloader.ClassLoaderSafeSystemTable;
 import io.trino.plugin.deltalake.DeltaLakeAnalyzeProperties.AnalyzeMode;
 import io.trino.plugin.deltalake.expression.ParsingException;
 import io.trino.plugin.deltalake.expression.SparkExpressionParser;
+import io.trino.plugin.deltalake.functions.tablechanges.TableChangesTableFunctionHandle;
 import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.DeltaMetastoreTable;
 import io.trino.plugin.deltalake.metastore.NotADeltaLakeTableException;
@@ -110,6 +111,7 @@ import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.connector.TableScanRedirectApplicationResult;
 import io.trino.spi.expression.ConnectorExpression;
 import io.trino.spi.expression.Variable;
+import io.trino.spi.function.table.ConnectorTableFunctionHandle;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.security.GrantInfo;
@@ -2353,6 +2355,48 @@ public class DeltaLakeMetadata
                 newHandle,
                 newUnenforcedConstraint.transformKeys(ColumnHandle.class::cast),
                 false));
+    }
+
+    @Override
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint constraint)
+    {
+        if (handle instanceof TableChangesTableFunctionHandle tableChangesHandle) {
+            Map<ColumnHandle, Domain> constraintDomains = constraint.getSummary().getDomains()
+                    .orElseThrow(() -> new IllegalArgumentException("constraint summary is NONE"));
+            Set<ColumnHandle> partitionColumns = tableChangesHandle.getColumnHandles()
+                    .values().stream()
+                    .filter(column -> ((DeltaLakeColumnHandle) column).getColumnType() == PARTITION_KEY)
+                    .collect(toImmutableSet());
+
+            ImmutableMap.Builder<DeltaLakeColumnHandle, Domain> enforceableDomains = ImmutableMap.builder();
+            ImmutableMap.Builder<DeltaLakeColumnHandle, Domain> unenforceableDomains = ImmutableMap.builder();
+            for (Entry<ColumnHandle, Domain> domainEntry : constraintDomains.entrySet()) {
+                DeltaLakeColumnHandle column = (DeltaLakeColumnHandle) domainEntry.getKey();
+                if (!partitionColumns.contains(column)) {
+                    unenforceableDomains.put(column, domainEntry.getValue());
+                }
+                else {
+                    enforceableDomains.put(column, domainEntry.getValue());
+                }
+            }
+            TupleDomain<DeltaLakeColumnHandle> newEnforcedConstraint = TupleDomain.withColumnDomains(enforceableDomains.buildOrThrow());
+            TupleDomain<DeltaLakeColumnHandle> newUnenforcedConstraint = TupleDomain.withColumnDomains(unenforceableDomains.buildOrThrow());
+            TableChangesTableFunctionHandle newTableChangesHandle = new TableChangesTableFunctionHandle(
+                    tableChangesHandle.schemaTableName(),
+                    tableChangesHandle.firstReadVersion(),
+                    tableChangesHandle.tableReadVersion(),
+                    tableChangesHandle.tableLocation(),
+                    tableChangesHandle.columns(),
+                    tableChangesHandle.enforcedPartitionConstraint().intersect(newEnforcedConstraint));
+            if (tableChangesHandle.enforcedPartitionConstraint().equals(newTableChangesHandle.enforcedPartitionConstraint())) {
+                return Optional.empty();
+            }
+            return Optional.of(new ConstraintApplicationResult<>(
+                    newTableChangesHandle,
+                    newUnenforcedConstraint.transformKeys(ColumnHandle.class::cast),
+                    false));
+        }
+        throw new IllegalArgumentException("Unknown tableHandle '" + handle + "'");
     }
 
     @Override

@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import io.trino.filesystem.Locations;
 import io.trino.filesystem.TrinoFileSystem;
 import io.trino.filesystem.TrinoFileSystemFactory;
+import io.trino.plugin.deltalake.DeltaLakeColumnHandle;
 import io.trino.plugin.deltalake.transactionlog.AddFileEntry;
 import io.trino.plugin.deltalake.transactionlog.CdcEntry;
 import io.trino.plugin.deltalake.transactionlog.CommitInfoEntry;
@@ -25,6 +26,7 @@ import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.ConnectorSplit;
 import io.trino.spi.connector.ConnectorSplitSource;
+import io.trino.spi.predicate.Domain;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,6 +41,7 @@ import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static io.trino.plugin.deltalake.DeltaLakeErrorCode.DELTA_LAKE_BAD_DATA;
 import static io.trino.plugin.deltalake.DeltaLakeErrorCode.DELTA_LAKE_FILESYSTEM_ERROR;
+import static io.trino.plugin.deltalake.DeltaLakeSplitManager.partitionMatchesPredicate;
 import static io.trino.plugin.deltalake.functions.tablechanges.TableChangesFileType.CDF_FILE;
 import static io.trino.plugin.deltalake.functions.tablechanges.TableChangesFileType.DATA_FILE;
 import static io.trino.plugin.deltalake.transactionlog.TransactionLogUtil.getTransactionLogDir;
@@ -54,6 +57,7 @@ public class TableChangesSplitSource
     private final AtomicLong currentVersion;
     private final long tableReadVersion;
     private final String transactionLogDir;
+    private final Map<DeltaLakeColumnHandle, Domain> enforcedDomains;
 
     public TableChangesSplitSource(
             ConnectorSession session,
@@ -65,6 +69,7 @@ public class TableChangesSplitSource
         currentVersion = new AtomicLong(functionHandle.firstReadVersion());
         tableReadVersion = functionHandle.tableReadVersion();
         transactionLogDir = getTransactionLogDir(tableLocation);
+        enforcedDomains = functionHandle.enforcedPartitionConstraint().getDomains().orElseThrow();
     }
 
     @Override
@@ -95,12 +100,14 @@ public class TableChangesSplitSource
                 CdcEntry cdcEntry = entry.getCDC();
                 if (cdcEntry != null) {
                     containsCdcEntry = true;
-                    splits.add(mapToDeltaLakeTableChangesSplit(
-                            commitInfo,
-                            CDF_FILE,
-                            cdcEntry.getSize(),
-                            cdcEntry.getPath(),
-                            cdcEntry.getCanonicalPartitionValues()));
+                    if (partitionMatchesPredicate(cdcEntry.getCanonicalPartitionValues(), enforcedDomains)) {
+                        splits.add(mapToDeltaLakeTableChangesSplit(
+                                commitInfo,
+                                CDF_FILE,
+                                cdcEntry.getSize(),
+                                cdcEntry.getPath(),
+                                cdcEntry.getCanonicalPartitionValues()));
+                    }
                 }
                 if (entry.getRemove() != null && entry.getRemove().isDataChange()) {
                     containsRemoveEntry = true;
@@ -113,12 +120,14 @@ public class TableChangesSplitSource
                 for (DeltaLakeTransactionLogEntry entry : entries) {
                     if (entry.getAdd() != null && entry.getAdd().isDataChange()) {
                         AddFileEntry addEntry = entry.getAdd();
-                        splits.add(mapToDeltaLakeTableChangesSplit(
-                                commitInfo,
-                                DATA_FILE,
-                                addEntry.getSize(),
-                                addEntry.getPath(),
-                                addEntry.getCanonicalPartitionValues()));
+                        if (partitionMatchesPredicate(addEntry.getCanonicalPartitionValues(), enforcedDomains)) {
+                            splits.add(mapToDeltaLakeTableChangesSplit(
+                                    commitInfo,
+                                    DATA_FILE,
+                                    addEntry.getSize(),
+                                    addEntry.getPath(),
+                                    addEntry.getCanonicalPartitionValues()));
+                        }
                     }
                 }
             }
