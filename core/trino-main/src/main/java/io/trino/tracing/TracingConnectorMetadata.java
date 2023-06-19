@@ -1038,6 +1038,15 @@ public class TracingConnectorMetadata
     }
 
     @Override
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint constraint)
+    {
+        Span span = startSpan("applyFilter", handle);
+        try (var ignored = scopedSpan(span)) {
+            return delegate.applyFilter(session, handle, constraint);
+        }
+    }
+
+    @Override
     public Optional<ProjectionApplicationResult<ConnectorTableHandle>> applyProjection(ConnectorSession session, ConnectorTableHandle handle, List<ConnectorExpression> projections, Map<String, ColumnHandle> assignments)
     {
         Span span = startSpan("applyProjection", handle);
@@ -1283,6 +1292,15 @@ public class TracingConnectorMetadata
         Span span = startSpan(methodName);
         if (span.isRecording()) {
             span.setAttribute(TrinoAttributes.FUNCTION, functionId.toString());
+        }
+        return span;
+    }
+
+    private Span startSpan(String methodName, ConnectorTableFunctionHandle handle)
+    {
+        Span span = startSpan(methodName);
+        if (span.isRecording()) {
+            span.setAttribute(TrinoAttributes.HANDLE, handle.toString());
         }
         return span;
     }
