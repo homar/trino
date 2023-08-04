@@ -1830,7 +1830,7 @@ public final class MetadataManager
     }
 
     @Override
-    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(Session session, TableFunctionHandle handle, Constraint constraint)
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(Session session, TableFunctionHandle handle, Constraint<Integer> constraint)
     {
         CatalogHandle catalogHandle = handle.getCatalogHandle();
         ConnectorMetadata metadata = getMetadata(session, catalogHandle);

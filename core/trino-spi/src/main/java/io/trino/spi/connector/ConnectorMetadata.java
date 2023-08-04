@@ -1102,7 +1102,7 @@ public interface ConnectorMetadata
         return Optional.empty();
     }
 
-    default Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint constraint)
+    default Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint<Integer> constraint)
     {
         // applyFilter is expected not to be invoked with a "false" constraint
         if (constraint.getSummary().isNone()) {

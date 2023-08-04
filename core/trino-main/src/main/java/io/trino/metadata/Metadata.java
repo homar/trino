@@ -484,9 +484,9 @@ public interface Metadata
 
     Optional<LimitApplicationResult<TableHandle>> applyLimit(Session session, TableHandle table, long limit);
 
-    Optional<ConstraintApplicationResult<TableHandle, ColumnHandle>> applyFilter(Session session, TableHandle table, Constraint constraint);
+    Optional<ConstraintApplicationResult<TableHandle, ColumnHandle>> applyFilter(Session session, TableHandle table, Constraint<ColumnHandle> constraint);
 
-    Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(Session session, TableFunctionHandle handle, Constraint constraint);
+    Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(Session session, TableFunctionHandle handle, Constraint<Integer> constraint);
 
     Optional<ProjectionApplicationResult<TableHandle>> applyProjection(Session session, TableHandle table, List<ConnectorExpression> projections, Map<String, ColumnHandle> assignments);
 

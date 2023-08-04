@@ -1053,7 +1053,7 @@ public class TracingConnectorMetadata
     }
 
     @Override
-    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint constraint)
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint<Integer> constraint)
     {
         Span span = startSpan("applyFilter", handle);
         try (var ignored = scopedSpan(span)) {

@@ -895,7 +895,7 @@ public class TracingMetadata
     }
 
     @Override
-    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(Session session, TableFunctionHandle handle, Constraint constraint)
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(Session session, TableFunctionHandle handle, Constraint<Integer> constraint)
     {
         Span span = startSpan("applyFilter");
         if (span.isRecording()) {

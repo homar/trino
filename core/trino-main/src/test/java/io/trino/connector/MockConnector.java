@@ -458,7 +458,7 @@ public class MockConnector
         }
 
         @Override
-        public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint constraint)
+        public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint<Integer> constraint)
         {
             return applyFilterForPtf.apply(session, handle, constraint);
         }

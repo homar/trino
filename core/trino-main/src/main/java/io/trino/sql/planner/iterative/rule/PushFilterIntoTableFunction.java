@@ -13,13 +13,14 @@
  */
 package io.trino.sql.planner.iterative.rule;
 
-import com.google.common.collect.Sets;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.HashBiMap;
+import com.google.common.collect.ImmutableMap;
 import io.trino.Session;
 import io.trino.matching.Capture;
 import io.trino.matching.Captures;
 import io.trino.matching.Pattern;
 import io.trino.metadata.TableFunctionHandle;
-import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.Constraint;
 import io.trino.spi.connector.ConstraintApplicationResult;
 import io.trino.spi.expression.ConnectorExpression;
@@ -42,13 +43,13 @@ import io.trino.sql.planner.plan.TableFunctionProcessorNode;
 import io.trino.sql.tree.Expression;
 import io.trino.sql.tree.NodeRef;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static io.trino.SystemSessionProperties.isAllowPushdownIntoConnectors;
 import static io.trino.matching.Capture.newCapture;
 import static io.trino.sql.ExpressionUtils.combineConjuncts;
@@ -59,6 +60,8 @@ import static io.trino.sql.planner.plan.Patterns.filter;
 import static io.trino.sql.planner.plan.Patterns.source;
 import static io.trino.sql.planner.plan.Patterns.tableFunctionProcessor;
 import static io.trino.sql.tree.BooleanLiteral.TRUE_LITERAL;
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
 
 public class PushFilterIntoTableFunction
         implements Rule<FilterNode>
@@ -116,10 +119,6 @@ public class PushFilterIntoTableFunction
             return Optional.empty();
         }
 
-        if (!node.getHandle().getFunctionHandle().supportsPredicatePushdown()) {
-            return Optional.empty();
-        }
-
         PushPredicateIntoTableScan.SplitExpression splitExpression = splitExpression(plannerContext, filterNode.getPredicate());
         DomainTranslator.ExtractionResult decomposedPredicate = DomainTranslator.getExtractionResult(
                 plannerContext,
@@ -127,19 +126,13 @@ public class PushFilterIntoTableFunction
                 splitExpression.getDeterministicPredicate(),
                 symbolAllocator.getTypes());
 
-        Map<ColumnHandle, Symbol> assignments = decomposedPredicate.getTupleDomain().getDomains().get()
-                .keySet().stream()
-                .collect(Collectors.toMap(
-                        symbol -> node.getHandle().getFunctionHandle().getColumnHandles().get(symbol.getName()),
-                        Function.identity()));
-        if (!Sets.difference(
-                decomposedPredicate.getTupleDomain().getDomains().orElseThrow().keySet().stream().map(Symbol::getName).collect(toImmutableSet()),
-                node.getHandle().getFunctionHandle().getColumnHandles().keySet()).isEmpty()) {
-            return Optional.empty();
-        }
+        List<Symbol> outputSymbols = node.getOutputSymbols();
 
-        TupleDomain<ColumnHandle> newDomain = decomposedPredicate.getTupleDomain()
-                .transformKeys(symbol -> node.getHandle().getFunctionHandle().getColumnHandles().get(symbol.getName()))
+        BiMap<Integer, Symbol> assignments = HashBiMap.create(IntStream.range(0, outputSymbols.size()).boxed()
+                .collect(toImmutableMap(identity(), outputSymbols::get)));
+
+        TupleDomain<Integer> newDomain = decomposedPredicate.getTupleDomain()
+                .transformKeys(assignments.inverse()::get)
                 .intersect(node.getEnforcedConstraint());
 
         ConnectorExpressionTranslator.ConnectorExpressionTranslation expressionTranslation = ConnectorExpressionTranslator.translateConjuncts(
@@ -148,15 +141,16 @@ public class PushFilterIntoTableFunction
                 symbolAllocator.getTypes(),
                 plannerContext,
                 typeAnalyzer);
+        ImmutableMap<String, Integer> nameToPosition = assignments.inverse().entrySet().stream()
+                .collect(toImmutableMap(entry -> entry.getKey().getName(), Map.Entry::getValue));
+        Constraint<Integer> constraint = new Constraint<>(newDomain, expressionTranslation.connectorExpression(), nameToPosition);
 
-        Constraint constraint = new Constraint(newDomain, expressionTranslation.connectorExpression(), node.getHandle().getFunctionHandle().getColumnHandles());
-
-        Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> result = plannerContext.getMetadata().applyFilter(session, node.getHandle(), constraint);
+        Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> result = plannerContext.getMetadata().applyFilter(session, node.getHandle(), constraint);
         if (result.isEmpty()) {
             return Optional.empty();
         }
 
-        TupleDomain<ColumnHandle> remainingFilter = result.get().getRemainingFilter();
+        TupleDomain<Integer> remainingFilter = result.get().getRemainingFilter();
         Optional<ConnectorExpression> remainingConnectorExpression = result.get().getRemainingExpression();
 
         TableFunctionProcessorNode tableFunctionProcessorNode = new TableFunctionProcessorNode(
@@ -180,7 +174,7 @@ public class PushFilterIntoTableFunction
             remainingDecomposedPredicate = decomposedPredicate.getRemainingExpression();
         }
         else {
-            Map<String, Symbol> variableMappings = node.getOutputSymbols().stream().collect(Collectors.toMap(Symbol::getName, Function.identity()));
+            Map<String, Symbol> variableMappings = node.getOutputSymbols().stream().collect(toMap(Symbol::getName, identity()));
             LiteralEncoder literalEncoder = new LiteralEncoder(plannerContext);
             Expression translatedExpression = ConnectorExpressionTranslator.translate(session, remainingConnectorExpression.get(), plannerContext, variableMappings, literalEncoder);
             Map<NodeRef<Expression>, Type> translatedExpressionTypes = typeAnalyzer.getTypes(session, symbolAllocator.getTypes(), translatedExpression);

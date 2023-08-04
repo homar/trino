@@ -14,11 +14,9 @@
 package io.trino.sql.planner.iterative.rule.test;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import io.trino.metadata.TableFunctionHandle;
 import io.trino.spi.connector.CatalogHandle;
-import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.function.table.ConnectorTableFunctionHandle;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.sql.planner.PlanNodeIdAllocator;
@@ -50,7 +48,6 @@ public class TableFunctionProcessorBuilder
     private int preSorted;
     private Optional<Symbol> hashSymbol = Optional.empty();
     private boolean supportsPredicatePushdown;
-    private Map<String, ColumnHandle> supportedColumnHandles = ImmutableMap.of();
     private CatalogHandle catalogHandle = TEST_CATALOG_HANDLE;
     private ConnectorTableFunctionHandle connectorTableFunctionHandle;
 
@@ -128,12 +125,6 @@ public class TableFunctionProcessorBuilder
         return this;
     }
 
-    public TableFunctionProcessorBuilder supportedColumnHandles(Map<String, ColumnHandle> columnHandles)
-    {
-        this.supportedColumnHandles = columnHandles;
-        return this;
-    }
-
     public TableFunctionProcessorBuilder catalogHandle(CatalogHandle catalogHandle)
     {
         this.catalogHandle = catalogHandle;
@@ -164,21 +155,7 @@ public class TableFunctionProcessorBuilder
                 new TableFunctionHandle(
                         catalogHandle,
                         connectorTableFunctionHandle == null ?
-                                new ConnectorTableFunctionHandle()
-                                {
-                                    @Override
-                                    public boolean supportsPredicatePushdown()
-                                    {
-                                        return supportsPredicatePushdown;
-                                    }
-
-                                    @Override
-                                    public Map<String, ColumnHandle> getColumnHandles()
-                                    {
-                                        return supportedColumnHandles;
-                                    }
-                                } :
-                                connectorTableFunctionHandle,
+                                new ConnectorTableFunctionHandle() {} : connectorTableFunctionHandle,
                         TestingTransactionHandle.create()),
                 TupleDomain.all());
     }

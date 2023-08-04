@@ -18,7 +18,6 @@ import com.google.common.collect.ImmutableMap;
 import io.trino.Session;
 import io.trino.connector.MockConnectorFactory;
 import io.trino.spi.connector.CatalogHandle;
-import io.trino.spi.connector.ColumnHandle;
 import io.trino.spi.connector.ConstraintApplicationResult;
 import io.trino.spi.function.table.ConnectorTableFunctionHandle;
 import io.trino.spi.predicate.NullableValue;
@@ -28,7 +27,6 @@ import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.parallel.ResourceLock;
 
-import java.util.Map;
 import java.util.Optional;
 
 import static io.trino.spi.type.BigintType.BIGINT;
@@ -43,36 +41,10 @@ public class TestPushFilterIntoTableFunction
         extends BaseRuleTest
 {
     private static final String MOCK_CATALOG = "mock_catalog";
-    private static final ConnectorTableFunctionHandle TABLE_FUNCTION_CONSUMES_ENTIRE_PREDICATE = new ConnectorTableFunctionHandle()
-    {
-        @Override
-        public Map<String, ColumnHandle> getColumnHandles()
-        {
-            return ImmutableMap.of("p", new ColumnHandle() {});
-        }
+    private static final ConnectorTableFunctionHandle TABLE_FUNCTION_CONSUMES_ENTIRE_PREDICATE = new ConnectorTableFunctionHandle() {};
 
-        @Override
-        public boolean supportsPredicatePushdown()
-        {
-            return true;
-        }
-    };
-
-    public static final ColumnHandle COLUMN_HANDLE = new ColumnHandle() {};
-    private static final ConnectorTableFunctionHandle TABLE_FUNCTION_CONSUMES_PREDICATE_PARTIALLY = new ConnectorTableFunctionHandle()
-    {
-        @Override
-        public Map<String, ColumnHandle> getColumnHandles()
-        {
-            return ImmutableMap.of("p", new ColumnHandle() {}, "z", COLUMN_HANDLE);
-        }
-
-        @Override
-        public boolean supportsPredicatePushdown()
-        {
-            return true;
-        }
-    };
+    public static final int PUSHDOWN_COLUMN = 1;
+    private static final ConnectorTableFunctionHandle TABLE_FUNCTION_CONSUMES_PREDICATE_PARTIALLY = new ConnectorTableFunctionHandle() {};
 
     private static final ConnectorTableFunctionHandle RESULT_TABLE_FUNCTION_HANDLE = new ConnectorTableFunctionHandle() {};
     private PushFilterIntoTableFunction pushFilterIntoTableFunction;
@@ -93,7 +65,7 @@ public class TestPushFilterIntoTableFunction
                     if (tableFunctionHandle.equals(TABLE_FUNCTION_CONSUMES_PREDICATE_PARTIALLY)) {
                         return Optional.of(new ConstraintApplicationResult<>(
                                 RESULT_TABLE_FUNCTION_HANDLE,
-                                TupleDomain.fromFixedValues(ImmutableMap.of(COLUMN_HANDLE, NullableValue.of(BIGINT, (long) 1))),
+                                TupleDomain.fromFixedValues(ImmutableMap.of(PUSHDOWN_COLUMN, NullableValue.of(BIGINT, (long) 1))),
                                 false));
                     }
                     return Optional.empty();
@@ -112,37 +84,6 @@ public class TestPushFilterIntoTableFunction
     }
 
     @Test
-    public void testDoesNotFireWhenFunctionDoesntSupportPredicatePushdown()
-    {
-        tester().assertThat(pushFilterIntoTableFunction)
-                .on(p -> p.filter(
-                        expression("nationkey % 17 =  BIGINT '44' AND nationkey % 15 =  BIGINT '43'"),
-                        p.tableFunctionProcessor(
-                                builder -> builder
-                                        .name("test_function")
-                                        .properOutputs(p.symbol("p"))
-                                        .source(p.values(p.symbol("x")))
-                                        .supportsPredicatePushdown(false))))
-                .doesNotFire();
-    }
-
-    @Test
-    public void testDoesNotFireWhenFunctionDoesntSupportAllTheDomains()
-    {
-        tester().assertThat(pushFilterIntoTableFunction)
-                .on(p -> p.filter(
-                        expression("p = BIGINT '44' AND x = BIGINT '21'"),
-                        p.tableFunctionProcessor(
-                                builder -> builder
-                                        .name("test_function")
-                                        .properOutputs(p.symbol("p"))
-                                        .source(p.values(p.symbol("x")))
-                                        .supportsPredicatePushdown(true)
-                                        .supportedColumnHandles(ImmutableMap.of("p", new ColumnHandle() {})))))
-                .doesNotFire();
-    }
-
-    @Test
     public void testDoesNotFireWhenApplyFilterReturnsEmptyResult()
     {
         tester().assertThat(pushFilterIntoTableFunction)
@@ -154,8 +95,7 @@ public class TestPushFilterIntoTableFunction
                                         .properOutputs(p.symbol("p"))
                                         .source(p.values(p.symbol("x")))
                                         .supportsPredicatePushdown(true)
-                                        .catalogHandle(catalogHandle)
-                                        .supportedColumnHandles(ImmutableMap.of("p", new ColumnHandle() {})))))
+                                        .catalogHandle(catalogHandle))))
                 .doesNotFire();
     }
 

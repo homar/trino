@@ -602,7 +602,7 @@ public abstract class AbstractMockMetadata
     }
 
     @Override
-    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> applyFilter(Session session, TableFunctionHandle handle, Constraint constraint)
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(Session session, TableFunctionHandle handle, Constraint<Integer> constraint)
     {
         return Optional.empty();
     }

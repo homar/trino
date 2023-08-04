@@ -352,7 +352,7 @@ public class MockConnectorFactory
     @FunctionalInterface
     public interface ApplyFilterForPtf
     {
-        Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle>> apply(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint constraint);
+        Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> apply(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint<Integer> constraint);
     }
 
     @FunctionalInterface
