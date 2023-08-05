@@ -156,6 +156,60 @@ public class TestDeltaLakeFileOperations
     }
 
     @Test
+    public void testTableChangesWithPredicatePushdownFileSystemAccess()
+    {
+        String tableName = "table_changes_with_predicate_pushdown_file_system_access";
+        assertUpdate("CREATE TABLE " + tableName + " (page_url VARCHAR, key VARCHAR, views INTEGER) WITH (change_data_feed_enabled = true, partitioned_by=ARRAY['key'])");
+        assertUpdate("INSERT INTO " + tableName + " VALUES('url1', 'domain1', 1)", 1);
+        assertUpdate("INSERT INTO " + tableName + " VALUES('url2', 'domain2', 2)", 1);
+        assertUpdate("INSERT INTO " + tableName + " VALUES('url3', 'domain3', 3)", 1);
+        assertUpdate("UPDATE " + tableName + " SET page_url = 'url22' WHERE key = 'domain2'", 1);
+        assertUpdate("UPDATE " + tableName + " SET page_url = 'url33' WHERE views = 3", 1);
+        assertUpdate("DELETE FROM " + tableName + " WHERE page_url = 'url1'", 1);
+        // The difference comes from the fact that during UPDATE queries there is no guarantee that rows that are going to be deleted and
+        // rows that are going to be inserted come on the same worker to io.trino.plugin.deltalake.DeltaLakeMergeSink.storeMergedRows
+        int cdfFilesForDomain2 = countCdfFilesForKey(tableName, "domain2");
+        int cdfFilesForDomain3 = countCdfFilesForKey(tableName, "domain3");
+
+        assertUpdate("CALL system.flush_metadata_cache(schema_name => CURRENT_SCHEMA, table_name => '" + tableName + "')");
+        assertFileSystemAccesses("SELECT * FROM TABLE(system.table_changes('default', '" + tableName + "')) WHERE key = 'domain2'",
+                ImmutableMultiset.<FileOperation>builder()
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000000.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000001.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000002.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000003.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000004.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000005.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000006.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000007.json", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(LAST_CHECKPOINT, "_last_checkpoint", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(CDF_DATA, "key=domain2/", INPUT_FILE_NEW_STREAM), cdfFilesForDomain2)
+                        .addCopies(new FileOperation(DATA, "key=domain2/", INPUT_FILE_NEW_STREAM), 1)
+                        .build());
+
+        // _commit_version is not a partition column, so we can't push it down so there is no gain here
+        assertUpdate("CALL system.flush_metadata_cache(schema_name => CURRENT_SCHEMA, table_name => '" + tableName + "')");
+        assertFileSystemAccesses("SELECT * FROM TABLE(system.table_changes('default', '" + tableName + "')) WHERE _commit_version = 2",
+                ImmutableMultiset.<FileOperation>builder()
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000000.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000001.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000002.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000003.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000004.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000005.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000006.json", INPUT_FILE_NEW_STREAM), 2)
+                        .addCopies(new FileOperation(TRANSACTION_LOG_JSON, "00000000000000000007.json", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(LAST_CHECKPOINT, "_last_checkpoint", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(CDF_DATA, "key=domain1/", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(CDF_DATA, "key=domain2/", INPUT_FILE_NEW_STREAM), cdfFilesForDomain2)
+                        .addCopies(new FileOperation(CDF_DATA, "key=domain3/", INPUT_FILE_NEW_STREAM), cdfFilesForDomain3)
+                        .addCopies(new FileOperation(DATA, "key=domain1/", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(DATA, "key=domain2/", INPUT_FILE_NEW_STREAM), 1)
+                        .addCopies(new FileOperation(DATA, "key=domain3/", INPUT_FILE_NEW_STREAM), 1)
+                        .build());
+    }
+
+    @Test
     public void testTableChangesFileSystemAccess()
     {
         assertUpdate("CREATE TABLE table_changes_file_system_access (page_url VARCHAR, key VARCHAR, views INTEGER) WITH (change_data_feed_enabled = true, partitioned_by=ARRAY['key'])");
@@ -168,8 +222,8 @@ public class TestDeltaLakeFileOperations
 
         // The difference comes from the fact that during UPDATE queries there is no guarantee that rows that are going to be deleted and
         // rows that are going to be inserted come on the same worker to io.trino.plugin.deltalake.DeltaLakeMergeSink.storeMergedRows
-        int cdfFilesForDomain2 = countCdfFilesForKey("domain2");
-        int cdfFilesForDomain3 = countCdfFilesForKey("domain3");
+        int cdfFilesForDomain2 = countCdfFilesForKey("table_changes_file_system_access", "domain2");
+        int cdfFilesForDomain3 = countCdfFilesForKey("table_changes_file_system_access", "domain3");
         assertUpdate("CALL system.flush_metadata_cache(schema_name => CURRENT_SCHEMA, table_name => 'table_changes_file_system_access')");
         assertFileSystemAccesses("SELECT * FROM TABLE(system.table_changes('default', 'table_changes_file_system_access'))",
                 ImmutableMultiset.<FileOperation>builder()
@@ -191,9 +245,9 @@ public class TestDeltaLakeFileOperations
                         .build());
     }
 
-    private int countCdfFilesForKey(String partitionValue)
+    private int countCdfFilesForKey(String tableName, String partitionValue)
     {
-        String path = (String) computeScalar("SELECT \"$path\" FROM table_changes_file_system_access WHERE key = '" + partitionValue + "'");
+        String path = (String) computeScalar("SELECT \"$path\" FROM " + tableName + " WHERE key = '" + partitionValue + "'");
         String partitionKey = "key=" + partitionValue;
         String tableLocation = path.substring(0, path.lastIndexOf(partitionKey));
         String partitionCdfFolder = URI.create(tableLocation).getPath() + "_change_data/" + partitionKey + "/";

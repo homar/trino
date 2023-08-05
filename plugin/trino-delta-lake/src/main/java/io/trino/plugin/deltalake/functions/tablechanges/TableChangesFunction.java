@@ -33,10 +33,12 @@ import io.trino.spi.function.table.Descriptor;
 import io.trino.spi.function.table.ScalarArgument;
 import io.trino.spi.function.table.ScalarArgumentSpecification;
 import io.trino.spi.function.table.TableFunctionAnalysis;
+import io.trino.spi.predicate.TupleDomain;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
@@ -61,6 +63,10 @@ public class TableChangesFunction
     private static final String CHANGE_TYPE_COLUMN_NAME = "_change_type";
     private static final String COMMIT_VERSION_COLUMN_NAME = "_commit_version";
     private static final String COMMIT_TIMESTAMP_COLUMN_NAME = "_commit_timestamp";
+    private static final DeltaLakeColumnHandle CHANGE_TYPE_COLUMN = new DeltaLakeColumnHandle(CHANGE_TYPE_COLUMN_NAME, VARCHAR, OptionalInt.empty(), CHANGE_TYPE_COLUMN_NAME, VARCHAR, SYNTHESIZED, Optional.empty());
+    private static final DeltaLakeColumnHandle COMMIT_VERSION_COLUMN = new DeltaLakeColumnHandle(COMMIT_VERSION_COLUMN_NAME, BIGINT, OptionalInt.empty(), COMMIT_VERSION_COLUMN_NAME, BIGINT, SYNTHESIZED, Optional.empty());
+    private static final DeltaLakeColumnHandle COMMIT_TIMESTAMP_COLUMN = new DeltaLakeColumnHandle(COMMIT_TIMESTAMP_COLUMN_NAME, TIMESTAMP_TZ_MILLIS, OptionalInt.empty(), COMMIT_TIMESTAMP_COLUMN_NAME, TIMESTAMP_TZ_MILLIS, SYNTHESIZED, Optional.empty());
+    public static final List<DeltaLakeColumnHandle> CHANGE_DATA_FEED_COLUMNS = ImmutableList.of(CHANGE_TYPE_COLUMN, COMMIT_VERSION_COLUMN, COMMIT_TIMESTAMP_COLUMN);
 
     private final DeltaLakeMetadataFactory deltaLakeMetadataFactory;
 
@@ -136,7 +142,13 @@ public class TableChangesFunction
         outputFields.add(new Descriptor.Field(COMMIT_TIMESTAMP_COLUMN_NAME, Optional.of(TIMESTAMP_TZ_MILLIS)));
 
         return TableFunctionAnalysis.builder()
-                .handle(new TableChangesTableFunctionHandle(schemaTableName, firstReadVersion, tableHandle.getReadVersion(), tableHandle.getLocation(), columnHandles))
+                .handle(new TableChangesTableFunctionHandle(
+                        schemaTableName,
+                        firstReadVersion,
+                        tableHandle.getReadVersion(),
+                        tableHandle.getLocation(),
+                        columnHandles,
+                        TupleDomain.all()))
                 .returnedType(new Descriptor(outputFields.build()))
                 .build();
     }

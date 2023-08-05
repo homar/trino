@@ -17,6 +17,7 @@ import com.google.common.collect.ImmutableList;
 import io.trino.plugin.deltalake.DeltaLakeColumnHandle;
 import io.trino.spi.connector.SchemaTableName;
 import io.trino.spi.function.table.ConnectorTableFunctionHandle;
+import io.trino.spi.predicate.TupleDomain;
 
 import java.util.List;
 
@@ -27,11 +28,14 @@ public record TableChangesTableFunctionHandle(
         long firstReadVersion,
         long tableReadVersion,
         String tableLocation,
-        List<DeltaLakeColumnHandle> columns) implements ConnectorTableFunctionHandle
+        List<DeltaLakeColumnHandle> columns,
+        TupleDomain<DeltaLakeColumnHandle> enforcedPartitionConstraint)
+        implements ConnectorTableFunctionHandle
 {
     public TableChangesTableFunctionHandle {
         requireNonNull(schemaTableName, "schemaTableName is null");
         requireNonNull(tableLocation, "tableLocation is null");
+        requireNonNull(enforcedPartitionConstraint, "enforcedPartitionConstraint is null");
         columns = ImmutableList.copyOf(columns);
     }
 }

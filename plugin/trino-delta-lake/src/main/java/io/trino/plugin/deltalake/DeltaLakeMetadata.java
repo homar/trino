@@ -36,6 +36,7 @@ import io.trino.plugin.base.projection.ApplyProjectionUtil;
 import io.trino.plugin.deltalake.DeltaLakeAnalyzeProperties.AnalyzeMode;
 import io.trino.plugin.deltalake.expression.ParsingException;
 import io.trino.plugin.deltalake.expression.SparkExpressionParser;
+import io.trino.plugin.deltalake.functions.tablechanges.TableChangesTableFunctionHandle;
 import io.trino.plugin.deltalake.metastore.DeltaLakeMetastore;
 import io.trino.plugin.deltalake.metastore.DeltaMetastoreTable;
 import io.trino.plugin.deltalake.metastore.NotADeltaLakeTableException;
@@ -112,6 +113,7 @@ import io.trino.spi.connector.TableNotFoundException;
 import io.trino.spi.connector.TableScanRedirectApplicationResult;
 import io.trino.spi.expression.ConnectorExpression;
 import io.trino.spi.expression.Variable;
+import io.trino.spi.function.table.ConnectorTableFunctionHandle;
 import io.trino.spi.predicate.Domain;
 import io.trino.spi.predicate.TupleDomain;
 import io.trino.spi.security.GrantInfo;
@@ -206,6 +208,7 @@ import static io.trino.plugin.deltalake.DeltaLakeTableProperties.getChangeDataFe
 import static io.trino.plugin.deltalake.DeltaLakeTableProperties.getCheckpointInterval;
 import static io.trino.plugin.deltalake.DeltaLakeTableProperties.getLocation;
 import static io.trino.plugin.deltalake.DeltaLakeTableProperties.getPartitionedBy;
+import static io.trino.plugin.deltalake.functions.tablechanges.TableChangesFunction.CHANGE_DATA_FEED_COLUMNS;
 import static io.trino.plugin.deltalake.metastore.HiveMetastoreBackedDeltaLakeMetastore.TABLE_PROVIDER_PROPERTY;
 import static io.trino.plugin.deltalake.metastore.HiveMetastoreBackedDeltaLakeMetastore.TABLE_PROVIDER_VALUE;
 import static io.trino.plugin.deltalake.procedure.DeltaLakeTableProcedureId.OPTIMIZE;
@@ -2571,6 +2574,52 @@ public class DeltaLakeMetadata
                 newHandle,
                 newUnenforcedConstraint.transformKeys(ColumnHandle.class::cast),
                 false));
+    }
+
+    @Override
+    public Optional<ConstraintApplicationResult<ConnectorTableFunctionHandle, Integer>> applyFilter(ConnectorSession session, ConnectorTableFunctionHandle handle, Constraint<Integer> constraint)
+    {
+        if (handle instanceof TableChangesTableFunctionHandle tableChangesHandle) {
+            Map<Integer, Domain> constraintDomains = constraint.getSummary().getDomains()
+                    .orElseThrow(() -> new IllegalArgumentException("constraint summary is NONE"));
+
+            List<DeltaLakeColumnHandle> tableFunctionColumns = Stream.concat(
+                            tableChangesHandle.columns().stream(),
+                            CHANGE_DATA_FEED_COLUMNS.stream())
+                    .collect(toImmutableList());
+            Set<ColumnHandle> partitionColumns = tableFunctionColumns.stream()
+                    .filter(column -> column.getColumnType() == PARTITION_KEY)
+                    .collect(toImmutableSet());
+
+            ImmutableMap.Builder<DeltaLakeColumnHandle, Domain> enforceableDomains = ImmutableMap.builder();
+            ImmutableMap.Builder<Integer, Domain> unenforceableDomains = ImmutableMap.builder();
+            for (Entry<Integer, Domain> domainEntry : constraintDomains.entrySet()) {
+                DeltaLakeColumnHandle column = tableFunctionColumns.get(domainEntry.getKey());
+                if (!partitionColumns.contains(column)) {
+                    unenforceableDomains.put(domainEntry.getKey(), domainEntry.getValue());
+                }
+                else {
+                    enforceableDomains.put(column, domainEntry.getValue());
+                }
+            }
+            TupleDomain<DeltaLakeColumnHandle> newEnforcedConstraint = TupleDomain.withColumnDomains(enforceableDomains.buildOrThrow());
+            TupleDomain<Integer> newUnenforcedConstraint = TupleDomain.withColumnDomains(unenforceableDomains.buildOrThrow());
+            TableChangesTableFunctionHandle newTableChangesHandle = new TableChangesTableFunctionHandle(
+                    tableChangesHandle.schemaTableName(),
+                    tableChangesHandle.firstReadVersion(),
+                    tableChangesHandle.tableReadVersion(),
+                    tableChangesHandle.tableLocation(),
+                    tableChangesHandle.columns(),
+                    tableChangesHandle.enforcedPartitionConstraint().intersect(newEnforcedConstraint));
+            if (tableChangesHandle.enforcedPartitionConstraint().equals(newTableChangesHandle.enforcedPartitionConstraint())) {
+                return Optional.empty();
+            }
+            return Optional.of(new ConstraintApplicationResult<>(
+                    newTableChangesHandle,
+                    newUnenforcedConstraint,
+                    false));
+        }
+        throw new IllegalArgumentException("Unknown tableHandle '" + handle + "'");
     }
 
     @Override
