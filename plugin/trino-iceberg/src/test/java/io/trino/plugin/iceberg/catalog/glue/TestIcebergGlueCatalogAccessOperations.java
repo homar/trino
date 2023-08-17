@@ -497,8 +497,7 @@ public class TestIcebergGlueCatalogAccessOperations
                             session,
                             "SELECT * FROM information_schema.columns WHERE table_schema = CURRENT_SCHEMA AND table_name LIKE 'test_select_i_s_columns%'",
                             ImmutableMultiset.<GlueMetastoreMethod>builder()
-                                    .addCopies(GET_TABLES, 7)
-                                    .addCopies(GET_TABLE, tables * 2)
+                                    .add(GET_TABLES)
                                     .build(),
                             ImmutableMultiset.of());
                 }
@@ -627,8 +626,8 @@ public class TestIcebergGlueCatalogAccessOperations
         return trackingFileSystemFactory.getOperationCounts()
                 .entrySet().stream()
                 .flatMap(entry -> nCopies(entry.getValue(), new FileOperation(
-                        fromFilePath(entry.getKey().getLocation().toString()),
-                        entry.getKey().getOperationType())).stream())
+                        fromFilePath(entry.getKey().location().toString()),
+                        entry.getKey().operationType())).stream())
                 .collect(toCollection(HashMultiset::create));
     }
 

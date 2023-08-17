@@ -156,13 +156,6 @@ public final class HiveTestUtils
                 .build();
     }
 
-    public static TestingConnectorSession getHiveSession(HiveConfig hiveConfig, ParquetReaderConfig parquetReaderConfig)
-    {
-        return TestingConnectorSession.builder()
-                .setPropertyMetadata(getHiveSessionProperties(hiveConfig, parquetReaderConfig).getSessionProperties())
-                .build();
-    }
-
     public static HiveSessionProperties getHiveSessionProperties(HiveConfig hiveConfig)
     {
         return getHiveSessionProperties(hiveConfig, new OrcReaderConfig());
@@ -206,14 +199,14 @@ public final class HiveTestUtils
         TrinoFileSystemFactory fileSystemFactory = new HdfsFileSystemFactory(hdfsEnvironment, HDFS_FILE_SYSTEM_STATS);
         FileFormatDataSourceStats stats = new FileFormatDataSourceStats();
         return ImmutableSet.<HivePageSourceFactory>builder()
-                .add(new CsvPageSourceFactory(fileSystemFactory, stats, hiveConfig))
-                .add(new JsonPageSourceFactory(fileSystemFactory, stats, hiveConfig))
-                .add(new OpenXJsonPageSourceFactory(fileSystemFactory, stats, hiveConfig))
-                .add(new RegexPageSourceFactory(fileSystemFactory, stats, hiveConfig))
-                .add(new SimpleTextFilePageSourceFactory(fileSystemFactory, stats, hiveConfig))
-                .add(new SimpleSequenceFilePageSourceFactory(fileSystemFactory, stats, hiveConfig))
-                .add(new AvroPageSourceFactory(fileSystemFactory, stats))
-                .add(new RcFilePageSourceFactory(fileSystemFactory, stats, hiveConfig))
+                .add(new CsvPageSourceFactory(fileSystemFactory, hiveConfig))
+                .add(new JsonPageSourceFactory(fileSystemFactory, hiveConfig))
+                .add(new OpenXJsonPageSourceFactory(fileSystemFactory, hiveConfig))
+                .add(new RegexPageSourceFactory(fileSystemFactory, hiveConfig))
+                .add(new SimpleTextFilePageSourceFactory(fileSystemFactory, hiveConfig))
+                .add(new SimpleSequenceFilePageSourceFactory(fileSystemFactory, hiveConfig))
+                .add(new AvroPageSourceFactory(fileSystemFactory))
+                .add(new RcFilePageSourceFactory(fileSystemFactory, hiveConfig))
                 .add(new OrcPageSourceFactory(new OrcReaderConfig(), fileSystemFactory, stats, hiveConfig))
                 .add(new ParquetPageSourceFactory(fileSystemFactory, stats, new ParquetReaderConfig(), hiveConfig))
                 .build();
