@@ -13,6 +13,8 @@
  */
 package io.trino.server;
 
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import com.google.errorprone.annotations.ThreadSafe;
 import com.google.inject.Inject;
 import io.opentelemetry.api.trace.Span;
@@ -22,6 +24,7 @@ import io.trino.metadata.SessionPropertyManager;
 import io.trino.security.AccessControl;
 import io.trino.spi.QueryId;
 import io.trino.spi.security.Identity;
+import io.trino.spi.security.SelectedRole;
 import io.trino.spi.type.TimeZoneKey;
 import io.trino.sql.SqlEnvironmentConfig;
 import io.trino.sql.SqlPath;
@@ -29,11 +32,17 @@ import io.trino.sql.SqlPath;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static io.trino.Session.SessionBuilder;
 import static io.trino.SystemSessionProperties.TIME_ZONE_ID;
+import static io.trino.execution.SetSessionAuthorizationTask.IMPERSONATION_CATALOG;
 import static io.trino.server.HttpRequestSessionContextFactory.addEnabledRoles;
+import static io.trino.spi.security.AccessDeniedException.denySetRole;
+import static io.trino.spi.security.SelectedRole.Type.ALL;
+import static io.trino.spi.security.SelectedRole.Type.ROLE;
 import static java.util.Map.Entry;
 import static java.util.Objects.requireNonNull;
 
@@ -90,8 +99,37 @@ public class QuerySessionSupplier
             // We preserve the information of original user in the originalIdentity,
             // and it will be used for the impersonation checks and be used as the source of audit information.
             accessControl.checkCanSetUser(originalIdentity.getPrincipal(), identity.getUser());
+            SelectedRole impersonatedRole = originalIdentity.getCatalogRoles().get(IMPERSONATION_CATALOG);
+            Map<String, SelectedRole> catalogRoles = originalIdentity.getCatalogRoles()
+                    .entrySet().stream()
+                    .filter(entry -> !entry.getKey().equals(IMPERSONATION_CATALOG))
+                    .collect(toImmutableMap(Entry::getKey, Entry::getValue));
+            if (impersonatedRole.getType() == ROLE) {
+                if (!metadata.listEnabledRoles(originalIdentity).contains(impersonatedRole.getRole().get())) {
+                    denySetRole(impersonatedRole.getRole().get());
+                }
+                else {
+                    Set<String> newEnabledRoles = Sets.union(originalIdentity.getEnabledRoles(), ImmutableSet.of(impersonatedRole.getRole().get()));
+                    originalIdentity = Identity.from(originalIdentity)
+                            .withEnabledRoles(newEnabledRoles)
+                            .withConnectorRoles(catalogRoles)
+                            .build();
+                }
+            }
+            else if (impersonatedRole.getType() == ALL) {
+                originalIdentity = Identity.from(originalIdentity)
+                        .withEnabledRoles(metadata.listEnabledRoles(originalIdentity))
+                        .build();
+            }
             accessControl.checkCanImpersonateUser(originalIdentity, identity.getUser());
         }
+        Map<String, SelectedRole> identityCatalogRoles = identity.getCatalogRoles()
+                .entrySet().stream()
+                .filter(entry -> !entry.getKey().equals(IMPERSONATION_CATALOG))
+                .collect(toImmutableMap(Entry::getKey, Entry::getValue));
+        identity = Identity.from(identity)
+                .withConnectorRoles(identityCatalogRoles)
+                .build();
 
         // add the enabled roles
         identity = addEnabledRoles(identity, context.getSelectedRole(), metadata);

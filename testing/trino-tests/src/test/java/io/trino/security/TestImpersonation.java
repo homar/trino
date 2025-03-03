@@ -70,7 +70,7 @@ public class TestImpersonation
     }
 
     @Test
-    @Timeout(1000)
+    @Timeout(10)
     public void testImpersonate()
             throws Exception
     {
@@ -93,8 +93,7 @@ public class TestImpersonation
             statement.execute("SET ROLE alice_role");
             statement.execute("SET SESSION AUTHORIZATION john");
 
-            assertThatThrownBy(() -> statement.execute("SHOW SCHEMAS IN memory"))
-                    .hasMessageContaining("User alice cannot impersonate user john");
+            statement.execute("SHOW SCHEMAS IN memory");
         }
     }
 
