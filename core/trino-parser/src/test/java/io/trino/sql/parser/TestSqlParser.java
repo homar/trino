@@ -3788,6 +3788,29 @@ public class TestSqlParser
     }
 
     @Test
+    public void testAlterFunctionSetAuthorization()
+    {
+        assertThat(statement("ALTER FUNCTION foo.bar.baz SET AUTHORIZATION qux")).isEqualTo(
+                new SetAuthorizationStatement(
+                        location(1, 1),
+                        "FUNCTION",
+                        QualifiedName.of(ImmutableList.of(new Identifier(location(1, 16), "foo", false), new Identifier(location(1, 20), "bar", false), new Identifier(location(1, 24), "baz", false))),
+                        new PrincipalSpecification(PrincipalSpecification.Type.UNSPECIFIED, new Identifier(location(1, 46), "qux", false))));
+        assertThat(statement("ALTER FUNCTION foo.bar.baz SET AUTHORIZATION USER qux")).isEqualTo(
+                new SetAuthorizationStatement(
+                        location(1, 1),
+                        "FUNCTION",
+                        QualifiedName.of(ImmutableList.of(new Identifier(location(1, 16), "foo", false), new Identifier(location(1, 20), "bar", false), new Identifier(location(1, 24), "baz", false))),
+                        new PrincipalSpecification(PrincipalSpecification.Type.USER, new Identifier(location(1, 51), "qux", false))));
+        assertThat(statement("ALTER FUNCTION foo.bar.baz SET AUTHORIZATION ROLE qux")).isEqualTo(
+                new SetAuthorizationStatement(
+                        location(1, 1),
+                        "FUNCTION",
+                        QualifiedName.of(ImmutableList.of(new Identifier(location(1, 16), "foo", false), new Identifier(location(1, 20), "bar", false), new Identifier(location(1, 24), "baz", false))),
+                        new PrincipalSpecification(PrincipalSpecification.Type.ROLE, new Identifier(location(1, 51), "qux", false))));
+    }
+
+    @Test
     public void testAlterNewEntityKindSetAuthorization()
     {
         assertThat(statement("ALTER QUARK foo.bar.baz SET AUTHORIZATION qux")).isEqualTo(
