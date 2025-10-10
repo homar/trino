@@ -21,6 +21,7 @@ import io.trino.spi.connector.ConnectorName;
 import java.util.Optional;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static io.trino.metadata.CatalogStatus.LOADED;
 import static java.util.Objects.requireNonNull;
 
 public class CatalogConnector
@@ -54,7 +55,8 @@ public class CatalogConnector
                 connectorName,
                 catalogConnector,
                 informationSchemaConnector,
-                systemConnector);
+                systemConnector,
+                LOADED);
     }
 
     public CatalogHandle getCatalogHandle()
