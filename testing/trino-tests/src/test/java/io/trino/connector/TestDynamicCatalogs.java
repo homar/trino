@@ -16,7 +16,6 @@ package io.trino.connector;
 import com.google.common.collect.ImmutableMap;
 import com.google.inject.Key;
 import io.trino.Session;
-import io.trino.metadata.CatalogManager;
 import io.trino.plugin.memory.MemoryPlugin;
 import io.trino.spi.catalog.CatalogName;
 import io.trino.spi.catalog.CatalogProperties;
@@ -38,7 +37,6 @@ public class TestDynamicCatalogs
 {
     private CatalogStore catalogStore;
     private ConnectorServicesProvider connectorServicesProvider;
-    private CatalogManager catalogManager;
 
     @Override
     protected QueryRunner createQueryRunner()
@@ -52,7 +50,6 @@ public class TestDynamicCatalogs
         queryRunner.createCatalog("healthy_catalog", "memory", ImmutableMap.of("memory.max-data-per-node", "128MB"));
         catalogStore = queryRunner.getCoordinator().getInstance(new Key<>() {});
         connectorServicesProvider = queryRunner.getCoordinator().getInstance(new Key<>() {});
-        catalogManager = queryRunner.getCoordinator().getInstance(new Key<>() {});
         return queryRunner;
     }
 
@@ -84,9 +81,7 @@ public class TestDynamicCatalogs
 
         assertQuery("SHOW CATALOGS", "VALUES 'healthy_catalog', '" + catalogName + "', 'system'");
         assertQueryFails("CREATE TABLE %s.default.test_table (age INT)".formatted(catalogName), ".*Catalog '%s' failed to initialize and is disabled.*".formatted(catalogName));
-        assertQueryFails("DROP CATALOG " + catalogName, ".*Catalog '%s' failed to initialize and is disabled.*".formatted(catalogName));
         assertQueryFails("CREATE CATALOG %s USING memory WITH (\"memory.max-data-per-node\" = '128MB')".formatted(catalogName), ".*Catalog '%s' already exists.*".formatted(catalogName));
-
-        catalogManager.dropCatalog(new CatalogName(catalogName), false);
+        assertUpdate("DROP CATALOG " + catalogName);
     }
 }
